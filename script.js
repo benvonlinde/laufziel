@@ -25,6 +25,7 @@
       weekReached: "Wochenziel erreicht",
       remainingPrefix: "noch",
       kw: "KW",
+      kwShort: "KW",
       goalPrefix: "Ziel",
       runDeleted: "Lauf gelöscht",
       runAdded: "Eingetragen",
@@ -40,6 +41,36 @@
       signedOut: "Abgemeldet",
       signInFailed: "Anmeldung fehlgeschlagen",
       configMissing: "OAuth-Client-ID und Spreadsheet-ID müssen in script.js gesetzt werden.",
+      // static UI strings
+      yearPrev: "Vorheriges Jahr",
+      yearNext: "Nächstes Jahr",
+      account: "Konto",
+      welcomeTitle: "Willkommen",
+      welcomeBody: "Melde dich mit Google an, um deine Läufe zu sehen und einzutragen.",
+      signInWithGoogle: "Mit Google anmelden",
+      signOut: "Abmelden",
+      newRun: "Neuer Lauf",
+      distanceLabel: "Distanz (km)",
+      distancePlaceholder: "z. B. 8,4",
+      dateLabel: "Datum",
+      submitRun: "Lauf eintragen",
+      thisWeek: "Diese Woche",
+      yearGoal: "Jahresziel",
+      history: "Verlauf",
+      threeMonths: "3 Monate",
+      yearTab: "Jahr",
+      recentRuns: "Letzte Läufe",
+      showAllN: (n) => `Alle anzeigen (${n})`,
+      showFewer: "Weniger anzeigen",
+      settingsTitle: "Einstellungen",
+      goalForYear: "Ziel",
+      goalForNextYear: "Ziel nächstes Jahr",
+      notSetYet: "noch nicht gesetzt",
+      languageLabel: "Sprache",
+      langDe: "Deutsch",
+      langEn: "English",
+      exportJson: "JSON exportieren",
+      deleteAria: "löschen",
     },
     en: {
       ahead: "ahead of pace",
@@ -48,6 +79,7 @@
       weekReached: "weekly goal reached",
       remainingPrefix: "remaining",
       kw: "Week",
+      kwShort: "Wk",
       goalPrefix: "Goal",
       runDeleted: "Run deleted",
       runAdded: "Logged",
@@ -63,8 +95,57 @@
       signedOut: "Signed out",
       signInFailed: "Sign-in failed",
       configMissing: "OAuth client ID and spreadsheet ID must be set in script.js.",
+      // static UI strings
+      yearPrev: "Previous year",
+      yearNext: "Next year",
+      account: "Account",
+      welcomeTitle: "Welcome",
+      welcomeBody: "Sign in with Google to view and log your runs.",
+      signInWithGoogle: "Sign in with Google",
+      signOut: "Sign out",
+      newRun: "New run",
+      distanceLabel: "Distance (km)",
+      distancePlaceholder: "e.g. 8.4",
+      dateLabel: "Date",
+      submitRun: "Log run",
+      thisWeek: "This week",
+      yearGoal: "Yearly goal",
+      history: "Trend",
+      threeMonths: "3 Months",
+      yearTab: "Year",
+      recentRuns: "Recent runs",
+      showAllN: (n) => `Show all (${n})`,
+      showFewer: "Show fewer",
+      settingsTitle: "Settings",
+      goalForYear: "Goal",
+      goalForNextYear: "Goal next year",
+      notSetYet: "not set yet",
+      languageLabel: "Language",
+      langDe: "German",
+      langEn: "English",
+      exportJson: "Export JSON",
+      deleteAria: "delete",
     },
   };
+
+  function applyStaticI18n() {
+    const dict = I18N[state.language];
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      const v = dict[key];
+      if (typeof v === "string") el.textContent = v;
+    });
+    document.querySelectorAll("[data-i18n-attr]").forEach((el) => {
+      const spec = el.getAttribute("data-i18n-attr"); // "attr|key,attr|key"
+      for (const pair of spec.split(",")) {
+        const [attr, key] = pair.split("|").map((s) => s.trim());
+        const v = dict[key];
+        if (attr && typeof v === "string") el.setAttribute(attr, v);
+      }
+    });
+    document.title = "Laufziel";
+    document.documentElement.lang = state.language;
+  }
 
   // ====== utilities ====================================================
   const uuid = () =>
@@ -547,7 +628,7 @@
     statusDot: $("statusDot"), statusText: $("statusText"),
     toast: $("toast"),
     // user chip + popover
-    userChip: $("userChip"), userChipBtn: $("userChipBtn"), userChipSignInBtn: $("userChipSignInBtn"),
+    userChip: $("userChip"), userChipBtn: $("userChipBtn"),
     userChipAvatar: $("userChipAvatar"), userChipName: $("userChipName"),
     userPopover: $("userPopover"), userPopoverName: $("userPopoverName"),
     userPopoverEmail: $("userPopoverEmail"), userPopoverSignOut: $("userPopoverSignOut"),
@@ -648,7 +729,7 @@
         } else {
           els.weekDiffLine.classList.add("is-bad");
           els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
-          els.weekDiffText.textContent = `${t.remainingPrefix} ${formatKm(Math.abs(wDiff))} km`;
+          els.weekDiffText.textContent = t.behind;
         }
         els.weekDiffLine.hidden = false;
       } else {
@@ -662,6 +743,7 @@
     els.goalNextInput.value = state.goals[String(state.activeYear + 1)] || "";
     if (els.langSelect.value !== state.language) els.langSelect.value = state.language;
 
+    applyStaticI18n();
     renderRuns();
     renderChart();
     renderStatus();
@@ -711,8 +793,8 @@
     }
     els.showAllRuns.hidden = all.length <= RUNS_DEFAULT_LIMIT;
     els.showAllRuns.textContent = showAllRunsFlag
-      ? (state.language === "de" ? "Weniger anzeigen" : "Show fewer")
-      : (state.language === "de" ? `Alle anzeigen (${all.length})` : `Show all (${all.length})`);
+      ? t.showFewer
+      : t.showAllN(all.length);
   }
 
   function renderStatus() {
@@ -847,8 +929,7 @@
     if (!els.userChip) return;
     const user = auth.getUser();
     if (signedIn) {
-      els.userChipBtn.hidden = false;
-      els.userChipSignInBtn.hidden = true;
+      els.userChip.hidden = false;
       const firstName = (user && user.name) ? user.name.split(/\s+/)[0] : "";
       els.userChipName.textContent = firstName;
       if (user && user.picture) {
@@ -861,8 +942,7 @@
       if (els.userPopoverEmail) els.userPopoverEmail.textContent = (user && user.email) || "";
       if (els.userPopoverName)  els.userPopoverName.textContent  = (user && user.name)  || "";
     } else {
-      els.userChipBtn.hidden = true;
-      els.userChipSignInBtn.hidden = false;
+      els.userChip.hidden = true;
       hideUserPopover();
     }
   }
@@ -986,7 +1066,6 @@
       });
     }
     bindSignIn(els.signInBtn);
-    bindSignIn(els.userChipSignInBtn);
 
     function doSignOut() {
       auth.signOut();
