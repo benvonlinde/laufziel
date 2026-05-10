@@ -19,35 +19,28 @@
         </button>
       </div>
       <button class="year-btn" id="yearNext" aria-label="Nächstes Jahr">›</button>
+      <div class="user-chip" id="userChip">
+        <button class="user-chip-btn" id="userChipBtn" type="button" hidden aria-label="Konto">
+          <span class="user-avatar" id="userChipAvatar"></span>
+          <span class="user-name" id="userChipName"></span>
+        </button>
+        <button class="user-chip-signin" id="userChipSignInBtn" type="button">Anmelden</button>
+        <div class="user-popover" id="userPopover" hidden role="menu">
+          <div class="user-popover-name"  id="userPopoverName"></div>
+          <div class="user-popover-email" id="userPopoverEmail"></div>
+          <button class="secondary block" id="userPopoverSignOut" type="button">Abmelden</button>
+        </div>
+      </div>
     </header>
 
-    <section class="card sign-in" id="signInCard" hidden>
-      <h2 class="card-title">Anmelden</h2>
-      <p class="muted">Deine Läufe werden in deiner Google-Tabelle <strong>Laufziel</strong> gespeichert. Melde dich einmal mit Google an.</p>
+    <section class="card hero signed-out-hero" id="signedOutHero" hidden>
+      <h2 class="card-title">Willkommen</h2>
+      <p>Melde dich mit Google an, um deine Läufe zu sehen und einzutragen.</p>
       <button class="primary block" id="signInBtn" type="button">Mit Google anmelden</button>
       <p class="form-error" id="signInError" hidden></p>
     </section>
 
-    <section class="card hero">
-      <div class="hero-numbers">
-        <div class="km-now" id="kmNow">0</div>
-        <div class="km-of">/ <span id="kmGoal">1000</span> km</div>
-      </div>
-      <div class="progress" aria-hidden="true">
-        <div class="progress-bar" id="progressBar"></div>
-      </div>
-      <div class="hero-meta">
-        <span id="percentLabel">0,0 %</span>
-        <span class="dot">·</span>
-        <span id="remainingLabel">noch 1000 km</span>
-      </div>
-      <div class="diff" id="diffLine">
-        <span class="diff-value" id="diffValue">±0,00 km</span>
-        <span class="diff-text" id="diffText">auf Kurs</span>
-      </div>
-    </section>
-
-    <section class="card add-form">
+    <section class="card add-form" data-signed-in-only>
       <h2 class="card-title">Neuer Lauf</h2>
       <form id="runForm" novalidate>
         <div class="row">
@@ -66,7 +59,7 @@
       </form>
     </section>
 
-    <section class="card week">
+    <section class="card week" data-signed-in-only>
       <h2 class="card-title">Diese Woche <span class="kw" id="kwLabel">KW –</span></h2>
       <div class="week-numbers">
         <span class="km-week" id="weekKm">0,0</span>
@@ -75,22 +68,52 @@
       <div class="progress small" aria-hidden="true">
         <div class="progress-bar" id="weekBar"></div>
       </div>
+      <div class="diff" id="weekDiffLine" hidden>
+        <span class="diff-value" id="weekDiffValue">±0,00 km</span>
+        <span class="diff-text"  id="weekDiffText">auf Kurs</span>
+      </div>
     </section>
 
-    <section class="card chart-card">
-      <h2 class="card-title">Verlauf</h2>
+    <section class="card hero" data-signed-in-only>
+      <h2 class="card-title">Jahresziel</h2>
+      <div class="hero-numbers">
+        <div class="km-now" id="kmNow">0</div>
+        <div class="km-of">/ <span id="kmGoal">1000</span> km</div>
+      </div>
+      <div class="progress" aria-hidden="true">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="hero-meta">
+        <span id="percentLabel">0,0 %</span>
+        <span class="dot">·</span>
+        <span id="remainingLabel">noch 1000 km</span>
+      </div>
+      <div class="diff" id="diffLine">
+        <span class="diff-value" id="diffValue">±0,00 km</span>
+        <span class="diff-text" id="diffText">auf Kurs</span>
+      </div>
+    </section>
+
+    <section class="card chart-card" data-signed-in-only>
+      <h2 class="card-title">
+        <span>Verlauf</span>
+        <span class="chart-tabs" role="tablist">
+          <button class="chart-tab" id="chartTab3m"   type="button" role="tab" aria-pressed="true">3 Monate</button>
+          <button class="chart-tab" id="chartTabYear" type="button" role="tab" aria-pressed="false">Jahr</button>
+        </span>
+      </h2>
       <div class="chart-wrap">
         <canvas id="progressChart"></canvas>
       </div>
     </section>
 
-    <section class="card runs">
+    <section class="card runs" data-signed-in-only>
       <h2 class="card-title">Letzte Läufe</h2>
       <ul class="runs-list" id="runsList"></ul>
       <button class="link-btn" id="showAllRuns" type="button" hidden>Alle anzeigen</button>
     </section>
 
-    <details class="card settings">
+    <details class="card settings" data-signed-in-only>
       <summary>Einstellungen</summary>
       <div class="settings-body">
         <label class="field">

@@ -28,6 +28,7 @@ At https://console.cloud.google.com:
 - Create a project named "Laufziel"
 - APIs & Services → Library → enable **Google Sheets API**
 - OAuth consent screen → External, app name "Laufziel", add yourself as **Test user**
+- Add scopes: `openid`, `…/auth/userinfo.email`, `…/auth/userinfo.profile`, `…/auth/spreadsheets`
 - Credentials → Create OAuth client ID → Web application
 - Authorized JavaScript origins: `https://<github-username>.github.io`
 - Copy the Client ID

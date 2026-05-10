@@ -5,21 +5,24 @@
   // Fill these in once your Google Cloud project + Sheet exist.
   const GOOGLE_OAUTH_CLIENT_ID = "399137703553-27oui7niagtoje9m8uvipb8tj7pio0f5.apps.googleusercontent.com";
   const SPREADSHEET_ID         = "1OeQ953XA3MM48kpcmqm4XJifhwgCot_41rXukU9fC3k";
-  const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+  const SCOPES = "openid email profile https://www.googleapis.com/auth/spreadsheets";
   const POLL_INTERVAL_MS = 60_000;
   const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
+  const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
   // ====================================================================
 
   const CACHE_KEY = "laufziel.cache.v2";
   const SETTINGS_KEY = "laufziel.settings.v2";
   const QUEUE_KEY = "laufziel.queue.v2";
   const TOKEN_KEY = "laufziel.token.v2"; // sessionStorage
+  const USER_KEY = "laufziel.user.v2";   // localStorage
 
   const I18N = {
     de: {
       ahead: "im Vorsprung",
       behind: "im Rückstand",
       onPace: "auf Kurs",
+      weekReached: "Wochenziel erreicht",
       remainingPrefix: "noch",
       kw: "KW",
       goalPrefix: "Ziel",
@@ -42,6 +45,7 @@
       ahead: "ahead of pace",
       behind: "behind pace",
       onPace: "on pace",
+      weekReached: "weekly goal reached",
       remainingPrefix: "remaining",
       kw: "Week",
       goalPrefix: "Goal",
@@ -189,6 +193,7 @@
     let tokenClient = null;
     let token = null;
     let expiresAt = 0;
+    let user = null; // { name, email, picture }
 
     function loadStoredToken() {
       try {
@@ -204,10 +209,34 @@
     function persistToken() {
       sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
     }
+    function loadStoredUser() {
+      try {
+        const raw = localStorage.getItem(USER_KEY);
+        if (raw) user = JSON.parse(raw);
+      } catch {}
+    }
+    function persistUser() {
+      if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+      else      localStorage.removeItem(USER_KEY);
+    }
+
+    function gisReady() {
+      return !!(window.google && google.accounts && google.accounts.oauth2);
+    }
+    function whenGisReady(timeoutMs = 4000) {
+      return new Promise((resolve, reject) => {
+        if (gisReady()) { resolve(); return; }
+        const start = Date.now();
+        const iv = setInterval(() => {
+          if (gisReady()) { clearInterval(iv); resolve(); }
+          else if (Date.now() - start > timeoutMs) { clearInterval(iv); reject(new Error("GIS load timeout")); }
+        }, 50);
+      });
+    }
 
     function ensureClient() {
       if (tokenClient) return tokenClient;
-      if (!window.google || !google.accounts || !google.accounts.oauth2) return null;
+      if (!gisReady()) return null;
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_OAUTH_CLIENT_ID,
         scope: SCOPES,
@@ -233,8 +262,24 @@
       });
     }
 
+    async function fetchUserInfo() {
+      if (!token) return null;
+      try {
+        const res = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return null;
+        const data = await res.json();
+        user = {
+          name: data.name || data.given_name || data.email || "",
+          email: data.email || "",
+          picture: data.picture || "",
+        };
+        persistUser();
+        return user;
+      } catch { return null; }
+    }
+
     return {
-      init() { loadStoredToken(); },
+      init() { loadStoredToken(); loadStoredUser(); },
       hasToken: () => !!(token && expiresAt > Date.now() + 30_000),
       getToken: async () => {
         if (token && expiresAt > Date.now() + 30_000) return token;
@@ -242,12 +287,31 @@
       },
       signIn: () => requestToken({ interactive: true }),
       signOut: () => {
-        if (token && window.google && google.accounts && google.accounts.oauth2) {
+        if (token && gisReady()) {
           try { google.accounts.oauth2.revoke(token, () => {}); } catch {}
         }
-        token = null; expiresAt = 0;
+        token = null; expiresAt = 0; user = null;
         sessionStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
       },
+      getUser: () => user,
+      ensureUser: async () => {
+        if (user) return user;
+        return await fetchUserInfo();
+      },
+      refreshUser: async () => {
+        user = null;
+        return await fetchUserInfo();
+      },
+      // Try to get a fresh access token without UI. Returns true on success.
+      trySilentRefresh: async () => {
+        try { await whenGisReady(); } catch { return false; }
+        try {
+          await requestToken({ interactive: false });
+          return true;
+        } catch { return false; }
+      },
+      whenReady: whenGisReady,
     };
   })();
 
@@ -466,7 +530,7 @@
   const els = {
     yearLabel: $("yearLabel"), yearPrev: $("yearPrev"), yearNext: $("yearNext"),
     goalChip: $("goalChip"), goalLabel: $("goalLabel"),
-    signInCard: $("signInCard"), signInBtn: $("signInBtn"), signInError: $("signInError"),
+    signInBtn: $("signInBtn"), signInError: $("signInError"),
     kmNow: $("kmNow"), kmGoal: $("kmGoal"),
     progressBar: $("progressBar"),
     percentLabel: $("percentLabel"), remainingLabel: $("remainingLabel"),
@@ -474,6 +538,7 @@
     runForm: $("runForm"), distInput: $("distInput"), dateInput: $("dateInput"),
     formError: $("formError"),
     kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
+    weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"),
     runsList: $("runsList"), showAllRuns: $("showAllRuns"),
     goalActiveInput: $("goalActiveInput"), goalNextInput: $("goalNextInput"),
     goalYear: $("goalYear"), goalNextYear: $("goalNextYear"),
@@ -481,6 +546,17 @@
     exportBtn: $("exportBtn"), signOutBtn: $("signOutBtn"),
     statusDot: $("statusDot"), statusText: $("statusText"),
     toast: $("toast"),
+    // user chip + popover
+    userChip: $("userChip"), userChipBtn: $("userChipBtn"), userChipSignInBtn: $("userChipSignInBtn"),
+    userChipAvatar: $("userChipAvatar"), userChipName: $("userChipName"),
+    userPopover: $("userPopover"), userPopoverName: $("userPopoverName"),
+    userPopoverEmail: $("userPopoverEmail"), userPopoverSignOut: $("userPopoverSignOut"),
+    // chart tabs
+    chartTab3m: $("chartTab3m"), chartTabYear: $("chartTabYear"),
+    // empty-state hero (signed-out)
+    signedOutHero: $("signedOutHero"),
+    // collection of sections that should hide when signed out
+    signedInOnly: Array.from(document.querySelectorAll("[data-signed-in-only]")),
   };
 
   // ====== toast ========================================================
@@ -560,6 +636,26 @@
       ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"
       : "0%";
 
+    // Weekly Differenz (milestone semantics: green as soon as the week target is reached)
+    if (els.weekDiffLine && els.weekDiffValue && els.weekDiffText) {
+      if (goal) {
+        const wDiff = Math.round((weekKm - weekTarget) * 100) / 100;
+        els.weekDiffLine.classList.remove("is-good", "is-bad");
+        if (wDiff >= 0) {
+          els.weekDiffLine.classList.add("is-good");
+          els.weekDiffValue.textContent = `+${formatKm(wDiff)} km`;
+          els.weekDiffText.textContent = t.weekReached;
+        } else {
+          els.weekDiffLine.classList.add("is-bad");
+          els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
+          els.weekDiffText.textContent = `${t.remainingPrefix} ${formatKm(Math.abs(wDiff))} km`;
+        }
+        els.weekDiffLine.hidden = false;
+      } else {
+        els.weekDiffLine.hidden = true;
+      }
+    }
+
     if (!els.dateInput.value) els.dateInput.value = today;
 
     els.goalActiveInput.value = state.goals[String(state.activeYear)] || "";
@@ -571,13 +667,15 @@
     renderStatus();
   }
 
+  const RUNS_DEFAULT_LIMIT = 5;
+
   function renderRuns() {
     const t = I18N[state.language];
     const all = [...state.runs].sort((a, b) =>
       a.date < b.date ? 1 : a.date > b.date ? -1 :
       ((a.createdAt || "") < (b.createdAt || "") ? 1 : -1)
     );
-    const visible = showAllRunsFlag ? all : all.slice(0, 10);
+    const visible = showAllRunsFlag ? all : all.slice(0, RUNS_DEFAULT_LIMIT);
     els.runsList.innerHTML = "";
     for (const r of visible) {
       const li = document.createElement("li");
@@ -611,7 +709,7 @@
       li.append(meta, km, del);
       els.runsList.appendChild(li);
     }
-    els.showAllRuns.hidden = all.length <= 10;
+    els.showAllRuns.hidden = all.length <= RUNS_DEFAULT_LIMIT;
     els.showAllRuns.textContent = showAllRunsFlag
       ? (state.language === "de" ? "Weniger anzeigen" : "Show fewer")
       : (state.language === "de" ? `Alle anzeigen (${all.length})` : `Show all (${all.length})`);
@@ -635,10 +733,19 @@
     }
   }
 
+  let chartView = "3m"; // "3m" | "year"
+
+  function setChartView(v) {
+    chartView = v;
+    if (els.chartTab3m) els.chartTab3m.setAttribute("aria-pressed", String(v === "3m"));
+    if (els.chartTabYear) els.chartTabYear.setAttribute("aria-pressed", String(v === "year"));
+    renderChart();
+  }
+
   function renderChart() {
     const goal = activeGoal();
     const dayCount = daysInYear(state.activeYear);
-    const labels = Array.from({ length: dayCount }, (_, i) => i + 1);
+    const fullLabels = Array.from({ length: dayCount }, (_, i) => i + 1);
 
     const today = new Date();
     const sameYear = today.getFullYear() === state.activeYear;
@@ -648,16 +755,29 @@
       .map((r) => ({ doy: dayOfYear(parseISO(r.date)), km: r.distanceKm }))
       .sort((a, b) => a.doy - b.doy);
 
-    const actual = new Array(dayCount).fill(null);
+    const fullActual = new Array(dayCount).fill(null);
     let acc = 0, ri = 0;
     for (let d = 1; d <= dayCount; d++) {
       while (ri < yearRuns.length && yearRuns[ri].doy <= d) { acc += yearRuns[ri].km; ri++; }
-      if (d <= todayDoy) actual[d - 1] = Math.round(acc * 100) / 100;
+      if (d <= todayDoy) fullActual[d - 1] = Math.round(acc * 100) / 100;
     }
 
-    const target = goal
-      ? labels.map((d) => Math.round((goal * (d / dayCount)) * 100) / 100)
-      : labels.map(() => null);
+    const fullTarget = goal
+      ? fullLabels.map((d) => Math.round((goal * (d / dayCount)) * 100) / 100)
+      : fullLabels.map(() => null);
+
+    // Slice to active view window.
+    let startDoy = 1, endDoy = dayCount;
+    if (chartView === "3m") {
+      const refMonth = sameYear ? today.getMonth() : 5; // mid-year fallback for non-current years
+      const startDate = new Date(state.activeYear, refMonth - 1, 1);
+      const endDate   = new Date(state.activeYear, refMonth + 2, 0); // last day of refMonth+1
+      startDoy = Math.max(1, dayOfYear(startDate));
+      endDoy   = Math.min(dayCount, dayOfYear(endDate));
+    }
+    const labels = fullLabels.slice(startDoy - 1, endDoy);
+    const actual = fullActual.slice(startDoy - 1, endDoy);
+    const target = fullTarget.slice(startDoy - 1, endDoy);
 
     const monthStartTicks = [];
     for (let m = 0; m < 12; m++) monthStartTicks.push(dayOfYear(new Date(state.activeYear, m, 1)));
@@ -708,7 +828,7 @@
             },
           },
         },
-        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#9090a8" }, beginAtZero: true },
+        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#9090a8" }, beginAtZero: chartView === "year" },
       },
     };
 
@@ -718,7 +838,41 @@
 
   function renderSignedInVisibility() {
     const signedIn = auth.hasToken();
-    els.signInCard.hidden = signedIn;
+    renderUserChip(signedIn);
+    if (els.signedInOnly) els.signedInOnly.forEach((el) => { el.hidden = !signedIn; });
+    if (els.signedOutHero) els.signedOutHero.hidden = signedIn;
+  }
+
+  function renderUserChip(signedIn) {
+    if (!els.userChip) return;
+    const user = auth.getUser();
+    if (signedIn) {
+      els.userChipBtn.hidden = false;
+      els.userChipSignInBtn.hidden = true;
+      const firstName = (user && user.name) ? user.name.split(/\s+/)[0] : "";
+      els.userChipName.textContent = firstName;
+      if (user && user.picture) {
+        els.userChipAvatar.style.backgroundImage = `url("${user.picture}")`;
+        els.userChipAvatar.textContent = "";
+      } else {
+        els.userChipAvatar.style.backgroundImage = "";
+        els.userChipAvatar.textContent = (firstName[0] || "?").toUpperCase();
+      }
+      if (els.userPopoverEmail) els.userPopoverEmail.textContent = (user && user.email) || "";
+      if (els.userPopoverName)  els.userPopoverName.textContent  = (user && user.name)  || "";
+    } else {
+      els.userChipBtn.hidden = true;
+      els.userChipSignInBtn.hidden = false;
+      hideUserPopover();
+    }
+  }
+
+  function toggleUserPopover() {
+    if (!els.userPopover) return;
+    els.userPopover.hidden = !els.userPopover.hidden;
+  }
+  function hideUserPopover() {
+    if (els.userPopover) els.userPopover.hidden = true;
   }
 
   // ====== mutations =====================================================
@@ -814,23 +968,48 @@
 
     els.exportBtn.addEventListener("click", exportJSON);
 
-    els.signInBtn.addEventListener("click", async () => {
-      els.signInError.hidden = true;
-      try {
-        await auth.signIn();
-        renderSignedInVisibility();
-        await sync.tick();
-      } catch (e) {
-        els.signInError.textContent = `${I18N[state.language].signInFailed}: ${e.message}`;
-        els.signInError.hidden = false;
-      }
-    });
+    function bindSignIn(btn) {
+      if (!btn) return;
+      btn.addEventListener("click", async () => {
+        if (els.signInError) els.signInError.hidden = true;
+        try {
+          await auth.signIn();
+          await auth.refreshUser();
+          renderSignedInVisibility();
+          await sync.tick();
+        } catch (e) {
+          if (els.signInError) {
+            els.signInError.textContent = `${I18N[state.language].signInFailed}: ${e.message}`;
+            els.signInError.hidden = false;
+          }
+        }
+      });
+    }
+    bindSignIn(els.signInBtn);
+    bindSignIn(els.userChipSignInBtn);
 
-    els.signOutBtn.addEventListener("click", () => {
+    function doSignOut() {
       auth.signOut();
       renderSignedInVisibility();
+      hideUserPopover();
       toast(I18N[state.language].signedOut);
-    });
+    }
+    if (els.signOutBtn) els.signOutBtn.addEventListener("click", doSignOut);
+    if (els.userPopoverSignOut) els.userPopoverSignOut.addEventListener("click", doSignOut);
+
+    if (els.userChipBtn) {
+      els.userChipBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleUserPopover();
+      });
+      document.addEventListener("click", (e) => {
+        if (!els.userPopover || els.userPopover.hidden) return;
+        if (!els.userChip.contains(e.target)) hideUserPopover();
+      });
+    }
+
+    if (els.chartTab3m) els.chartTab3m.addEventListener("click", () => setChartView("3m"));
+    if (els.chartTabYear) els.chartTabYear.addEventListener("click", () => setChartView("year"));
 
     els.showAllRuns.addEventListener("click", () => { showAllRunsFlag = !showAllRunsFlag; renderRuns(); });
   }
@@ -847,7 +1026,7 @@
     return true;
   }
 
-  function boot() {
+  async function boot() {
     loadCacheAndSettings();
     auth.init();
     wire();
@@ -855,6 +1034,21 @@
     renderSignedInVisibility();
     if (!checkConfig()) return;
     sync.start();
+
+    // If we have a token already (same tab session), proceed.
+    // Otherwise attempt a silent refresh — works when Google still has the user's session.
+    if (!auth.hasToken()) {
+      try {
+        const ok = await auth.trySilentRefresh();
+        if (ok) {
+          await auth.ensureUser();
+          renderSignedInVisibility();
+        }
+      } catch { /* user will see sign-in prompt */ }
+    } else {
+      await auth.ensureUser();
+      renderSignedInVisibility();
+    }
     if (auth.hasToken()) {
       sync.tick();
     }

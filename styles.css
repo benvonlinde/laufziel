@@ -40,13 +40,15 @@ input, select { font: inherit; color: inherit; }
 
 /* Topbar */
 .topbar {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
   padding: 4px 0 6px;
 }
-.year-block { text-align: center; }
+.topbar .year-btn { flex: 0 0 auto; }
+.year-block { text-align: center; flex: 0 0 auto; min-width: 130px; }
 .year { font-size: clamp(22px, 6vw, 28px); font-weight: 700; letter-spacing: -0.02em; }
 .year-btn {
   background: var(--surface);
@@ -67,6 +69,73 @@ input, select { font: inherit; color: inherit; }
   font-size: 13px;
 }
 .goal-chip:active { background: rgba(58, 109, 255, 0.3); }
+
+/* User chip in topbar */
+.user-chip { position: absolute; top: 4px; right: 0; }
+.user-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  font-size: 13px;
+  max-width: 140px;
+  min-height: 36px;
+}
+.user-chip-btn:active { background: var(--surface-2); }
+.user-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background-color: var(--accent-soft);
+  background-size: cover;
+  background-position: center;
+  display: inline-grid; place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+.user-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+.user-chip-signin {
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.user-chip-signin:active { background: rgba(58,109,255,0.3); }
+.user-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+  z-index: 40;
+}
+.user-popover[hidden] { display: none; }
+.user-popover-name  { font-weight: 600; }
+.user-popover-email { color: var(--muted); font-size: 13px; word-break: break-all; }
+.user-popover .secondary { width: 100%; }
+
+/* Signed-out empty-state hero */
+.signed-out-hero p { margin: 0 0 12px; color: var(--muted); }
 
 /* Card base */
 .card {
@@ -90,6 +159,7 @@ input, select { font: inherit; color: inherit; }
 
 /* Hero */
 .hero { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.hero[hidden], [data-signed-in-only][hidden] { display: none; }
 .hero-numbers { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .km-now {
   font-size: clamp(40px, 12vw, 56px);
@@ -208,8 +278,27 @@ button.link-btn {
 .km-week-of { color: var(--muted); font-size: 14px; }
 
 /* Chart */
-.chart-wrap { position: relative; height: 220px; }
-@media (min-width: 600px) { .chart-wrap { height: 260px; } }
+.chart-wrap { position: relative; height: 280px; }
+@media (min-width: 600px) { .chart-wrap { height: 340px; } }
+.chart-tabs { display: inline-flex; gap: 4px; }
+.chart-tab {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-weight: 600;
+}
+.chart-tab[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: rgba(58,109,255,0.4);
+  color: var(--text);
+}
+.chart-tab:active { transform: translateY(1px); }
 
 /* Runs list */
 .runs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -235,10 +324,6 @@ button.link-btn {
   font-size: 18px;
 }
 .run-del:active { background: var(--surface-2); color: var(--bad); }
-
-/* Sign-in card */
-.sign-in { display: flex; flex-direction: column; gap: 10px; }
-.sign-in p { margin: 0; }
 
 /* Status line in footer */
 .status-line { display: inline-flex; align-items: center; gap: 6px; }
