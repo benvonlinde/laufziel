@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <title>Laufziel</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+
+    <header class="topbar">
+      <button class="year-btn" id="yearPrev" aria-label="Vorheriges Jahr">‹</button>
+      <div class="year-block">
+        <div class="year" id="yearLabel">2026</div>
+        <button class="goal-chip" id="goalChip" type="button">
+          Ziel <span id="goalLabel">1000</span> km
+        </button>
+      </div>
+      <button class="year-btn" id="yearNext" aria-label="Nächstes Jahr">›</button>
+    </header>
+
+    <section class="card sign-in" id="signInCard" hidden>
+      <h2 class="card-title">Anmelden</h2>
+      <p class="muted">Deine Läufe werden in deiner Google-Tabelle <strong>Laufziel</strong> gespeichert. Melde dich einmal mit Google an.</p>
+      <button class="primary block" id="signInBtn" type="button">Mit Google anmelden</button>
+      <p class="form-error" id="signInError" hidden></p>
+    </section>
+
+    <section class="card hero">
+      <div class="hero-numbers">
+        <div class="km-now" id="kmNow">0</div>
+        <div class="km-of">/ <span id="kmGoal">1000</span> km</div>
+      </div>
+      <div class="progress" aria-hidden="true">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="hero-meta">
+        <span id="percentLabel">0,0 %</span>
+        <span class="dot">·</span>
+        <span id="remainingLabel">noch 1000 km</span>
+      </div>
+      <div class="diff" id="diffLine">
+        <span class="diff-value" id="diffValue">±0,00 km</span>
+        <span class="diff-text" id="diffText">auf Kurs</span>
+      </div>
+    </section>
+
+    <section class="card add-form">
+      <h2 class="card-title">Neuer Lauf</h2>
+      <form id="runForm" novalidate>
+        <div class="row">
+          <label class="field">
+            <span>Distanz (km)</span>
+            <input id="distInput" type="text" inputmode="decimal" autocomplete="off"
+                   placeholder="z. B. 8,4" required />
+          </label>
+          <label class="field">
+            <span>Datum</span>
+            <input id="dateInput" type="date" required />
+          </label>
+        </div>
+        <button type="submit" class="primary">Lauf eintragen</button>
+        <p class="form-error" id="formError" hidden></p>
+      </form>
+    </section>
+
+    <section class="card week">
+      <h2 class="card-title">Diese Woche <span class="kw" id="kwLabel">KW –</span></h2>
+      <div class="week-numbers">
+        <span class="km-week" id="weekKm">0,0</span>
+        <span class="km-week-of">/ <span id="weekTarget">18,87</span> km</span>
+      </div>
+      <div class="progress small" aria-hidden="true">
+        <div class="progress-bar" id="weekBar"></div>
+      </div>
+    </section>
+
+    <section class="card chart-card">
+      <h2 class="card-title">Verlauf</h2>
+      <div class="chart-wrap">
+        <canvas id="progressChart"></canvas>
+      </div>
+    </section>
+
+    <section class="card runs">
+      <h2 class="card-title">Letzte Läufe</h2>
+      <ul class="runs-list" id="runsList"></ul>
+      <button class="link-btn" id="showAllRuns" type="button" hidden>Alle anzeigen</button>
+    </section>
+
+    <details class="card settings">
+      <summary>Einstellungen</summary>
+      <div class="settings-body">
+        <label class="field">
+          <span>Ziel <span class="muted" id="goalYear">2026</span> (km)</span>
+          <input type="number" id="goalActiveInput" min="1" step="1" />
+        </label>
+        <label class="field">
+          <span>Ziel nächstes Jahr (<span id="goalNextYear">2027</span>) (km)</span>
+          <input type="number" id="goalNextInput" min="1" step="1" placeholder="noch nicht gesetzt" />
+        </label>
+        <label class="field">
+          <span>Sprache</span>
+          <select id="langSelect">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <div class="settings-actions">
+          <button class="secondary" id="exportBtn" type="button">JSON exportieren</button>
+          <button class="secondary" id="signOutBtn" type="button">Abmelden</button>
+        </div>
+      </div>
+    </details>
+
+    <footer class="foot muted">
+      <span id="storageNote" class="status-line">
+        <span class="status-dot" id="statusDot" data-state="offline"></span>
+        <span id="statusText">offline</span>
+      </span>
+    </footer>
+
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="script.js" defer></script>
+</body>
+</html>

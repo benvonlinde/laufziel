@@ -1,0 +1,869 @@
+(() => {
+  "use strict";
+
+  // ====== CONFIG ======================================================
+  // Fill these in once your Google Cloud project + Sheet exist.
+  const GOOGLE_OAUTH_CLIENT_ID = "399137703553-27oui7niagtoje9m8uvipb8tj7pio0f5.apps.googleusercontent.com";
+  const SPREADSHEET_ID         = "1OeQ953XA3MM48kpcmqm4XJifhwgCot_41rXukU9fC3k";
+  const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+  const POLL_INTERVAL_MS = 60_000;
+  const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
+  // ====================================================================
+
+  const CACHE_KEY = "laufziel.cache.v2";
+  const SETTINGS_KEY = "laufziel.settings.v2";
+  const QUEUE_KEY = "laufziel.queue.v2";
+  const TOKEN_KEY = "laufziel.token.v2"; // sessionStorage
+
+  const I18N = {
+    de: {
+      ahead: "im Vorsprung",
+      behind: "im Rückstand",
+      onPace: "auf Kurs",
+      remainingPrefix: "noch",
+      kw: "KW",
+      goalPrefix: "Ziel",
+      runDeleted: "Lauf gelöscht",
+      runAdded: "Eingetragen",
+      goalUpdated: "Ziel aktualisiert",
+      cleared: "Alle Daten gelöscht",
+      confirmDelete: "Diesen Lauf löschen?",
+      formErrInvalid: "Bitte eine gültige Distanz eingeben (z. B. 8,4)",
+      noGoalSet: "Kein Ziel gesetzt",
+      onlineSynced: "synchronisiert",
+      onlineSyncing: "synchronisiere…",
+      offlinePending: (n) => `offline · ${n} ausstehend`,
+      offline: "offline",
+      signedOut: "Abgemeldet",
+      signInFailed: "Anmeldung fehlgeschlagen",
+      configMissing: "OAuth-Client-ID und Spreadsheet-ID müssen in script.js gesetzt werden.",
+    },
+    en: {
+      ahead: "ahead of pace",
+      behind: "behind pace",
+      onPace: "on pace",
+      remainingPrefix: "remaining",
+      kw: "Week",
+      goalPrefix: "Goal",
+      runDeleted: "Run deleted",
+      runAdded: "Logged",
+      goalUpdated: "Goal updated",
+      cleared: "All data cleared",
+      confirmDelete: "Delete this run?",
+      formErrInvalid: "Please enter a valid distance (e.g. 8.4)",
+      noGoalSet: "No goal set",
+      onlineSynced: "synced",
+      onlineSyncing: "syncing…",
+      offlinePending: (n) => `offline · ${n} pending`,
+      offline: "offline",
+      signedOut: "Signed out",
+      signInFailed: "Sign-in failed",
+      configMissing: "OAuth client ID and spreadsheet ID must be set in script.js.",
+    },
+  };
+
+  // ====== utilities ====================================================
+  const uuid = () =>
+    (crypto.randomUUID && crypto.randomUUID()) ||
+    "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  const todayISO = () => {
+    const d = new Date();
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  };
+
+  const parseISO = (iso) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const daysInYear = (y) => (isLeap(y) ? 366 : 365);
+
+  const dayOfYear = (date) => {
+    const start = Date.UTC(date.getFullYear(), 0, 0);
+    const today = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    return Math.round((today - start) / 86400000);
+  };
+
+  const isoWeeksInYear = (y) => {
+    const jan1 = new Date(y, 0, 1).getDay();
+    if (jan1 === 4) return 53;
+    if (jan1 === 3 && isLeap(y)) return 53;
+    return 52;
+  };
+
+  const isoWeek = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  };
+
+  const isoWeekYear = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    return d.getUTCFullYear();
+  };
+
+  function formatKm(n)  { return n.toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function formatKm1(n) { return n.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+  function formatPercent(n) { return n.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %"; }
+  function formatDateShort(iso) {
+    return parseISO(iso).toLocaleDateString(localeTag(), { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  function localeTag() { return state.language === "en" ? "en-US" : "de-DE"; }
+
+  function parseDistance(raw) {
+    if (typeof raw !== "string") raw = String(raw);
+    const cleaned = raw.replace(/\s|km/gi, "").replace(",", ".");
+    const num = Number(cleaned);
+    if (!isFinite(num) || num <= 0 || num > 500) return null;
+    return Math.round(num * 100) / 100;
+  }
+
+  // ====== state ========================================================
+  const defaultSettings = () => ({
+    activeYear: new Date().getFullYear(),
+    language: "de",
+  });
+
+  const state = {
+    runs: [],          // [{ id, date, distanceKm, createdAt, source }]
+    goals: {},         // { "2026": 1000 }
+    activeYear: defaultSettings().activeYear,
+    language: defaultSettings().language,
+    fetchedAt: null,
+    online: false,
+    syncing: false,
+  };
+
+  function loadCacheAndSettings() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      if (c) {
+        state.runs = Array.isArray(c.runs) ? c.runs : [];
+        state.goals = c.goals && typeof c.goals === "object" ? c.goals : {};
+        state.fetchedAt = c.fetchedAt || null;
+      }
+    } catch (e) { console.warn("cache parse failed", e); }
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
+      if (s) {
+        if (typeof s.activeYear === "number") state.activeYear = s.activeYear;
+        if (s.language === "de" || s.language === "en") state.language = s.language;
+      }
+    } catch (e) { console.warn("settings parse failed", e); }
+  }
+
+  function saveCache() {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      runs: state.runs,
+      goals: state.goals,
+      fetchedAt: state.fetchedAt,
+    }));
+  }
+  function saveSettings() {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      activeYear: state.activeYear,
+      language: state.language,
+    }));
+  }
+
+  function activeGoal() {
+    const g = state.goals[String(state.activeYear)];
+    return typeof g === "number" && g > 0 ? g : null;
+  }
+  function runsForYear(y) {
+    return state.runs.filter((r) => r.date.startsWith(String(y) + "-"));
+  }
+  function cumulativeUpTo(y, throughIso) {
+    return runsForYear(y).filter((r) => r.date <= throughIso).reduce((s, r) => s + r.distanceKm, 0);
+  }
+
+  // ====== auth (Google Identity Services) ==============================
+  const auth = (() => {
+    let tokenClient = null;
+    let token = null;
+    let expiresAt = 0;
+
+    function loadStoredToken() {
+      try {
+        const raw = sessionStorage.getItem(TOKEN_KEY);
+        if (!raw) return;
+        const obj = JSON.parse(raw);
+        if (obj && obj.token && obj.expiresAt > Date.now() + 30_000) {
+          token = obj.token;
+          expiresAt = obj.expiresAt;
+        }
+      } catch {}
+    }
+    function persistToken() {
+      sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
+    }
+
+    function ensureClient() {
+      if (tokenClient) return tokenClient;
+      if (!window.google || !google.accounts || !google.accounts.oauth2) return null;
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
+        scope: SCOPES,
+        callback: () => {}, // overridden per request
+      });
+      return tokenClient;
+    }
+
+    function requestToken({ interactive }) {
+      return new Promise((resolve, reject) => {
+        const client = ensureClient();
+        if (!client) { reject(new Error("GIS not loaded")); return; }
+        client.callback = (resp) => {
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          token = resp.access_token;
+          expiresAt = Date.now() + (resp.expires_in - 60) * 1000;
+          persistToken();
+          resolve(token);
+        };
+        try {
+          client.requestAccessToken({ prompt: interactive ? "consent" : "" });
+        } catch (e) { reject(e); }
+      });
+    }
+
+    return {
+      init() { loadStoredToken(); },
+      hasToken: () => !!(token && expiresAt > Date.now() + 30_000),
+      getToken: async () => {
+        if (token && expiresAt > Date.now() + 30_000) return token;
+        return await requestToken({ interactive: false });
+      },
+      signIn: () => requestToken({ interactive: true }),
+      signOut: () => {
+        if (token && window.google && google.accounts && google.accounts.oauth2) {
+          try { google.accounts.oauth2.revoke(token, () => {}); } catch {}
+        }
+        token = null; expiresAt = 0;
+        sessionStorage.removeItem(TOKEN_KEY);
+      },
+    };
+  })();
+
+  // ====== sheets API wrapper ==========================================
+  const sheets = (() => {
+    async function call(method, path, body) {
+      const t = await auth.getToken();
+      const res = await fetch(`${SHEETS_API}/${SPREADSHEET_ID}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${t}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Sheets ${method} ${path} → ${res.status}: ${text}`);
+      }
+      return res.status === 204 ? null : res.json();
+    }
+
+    async function getSheetMeta() {
+      // Cached map of sheet titles to gid (sheet IDs needed for batchUpdate row deletes).
+      if (getSheetMeta._cache) return getSheetMeta._cache;
+      const data = await call("GET", `?fields=sheets.properties(sheetId,title)`);
+      const map = {};
+      for (const s of data.sheets || []) map[s.properties.title] = s.properties.sheetId;
+      getSheetMeta._cache = map;
+      return map;
+    }
+
+    async function fetchAll() {
+      const data = await call(
+        "GET",
+        `/values:batchGet?ranges=Runs!A2:E&ranges=Goals!A2:B&majorDimension=ROWS`
+      );
+      const runsRows = (data.valueRanges?.[0]?.values) || [];
+      const goalRows = (data.valueRanges?.[1]?.values) || [];
+      const runs = runsRows
+        .filter((row) => row && row[0] && row[1] && row[2])
+        .map((row) => ({
+          id: row[0],
+          date: row[1],
+          distanceKm: parseFloat(String(row[2]).replace(",", ".")) || 0,
+          createdAt: row[3] || null,
+          source: row[4] || "web",
+        }));
+      const goals = {};
+      for (const row of goalRows) {
+        if (!row || !row[0]) continue;
+        const yr = String(row[0]).trim();
+        const km = parseFloat(String(row[1] || "").replace(",", "."));
+        if (yr && isFinite(km) && km > 0) goals[yr] = km;
+      }
+      return { runs, goals };
+    }
+
+    async function appendRun(run) {
+      await call(
+        "POST",
+        `/values/Runs!A:E:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { values: [[run.id, run.date, run.distanceKm, run.createdAt, run.source]] }
+      );
+    }
+
+    async function deleteRunById(id) {
+      const meta = await getSheetMeta();
+      const sheetId = meta["Runs"];
+      if (sheetId == null) throw new Error("Runs sheet not found");
+      // Find the row index by reading column A (id column).
+      const data = await call("GET", `/values/Runs!A:A?majorDimension=COLUMNS`);
+      const col = (data.values && data.values[0]) || [];
+      const idx = col.indexOf(id);
+      if (idx === -1) return false; // Already gone — treat as success.
+      // idx is 0-based including header (row 1 = header). The row to delete is `idx` 0-based in API terms.
+      await call("POST", `:batchUpdate`, {
+        requests: [{
+          deleteDimension: {
+            range: { sheetId, dimension: "ROWS", startIndex: idx, endIndex: idx + 1 },
+          },
+        }],
+      });
+      return true;
+    }
+
+    async function upsertGoal(year, kmGoalOrNull) {
+      const meta = await getSheetMeta();
+      const sheetId = meta["Goals"];
+      if (sheetId == null) throw new Error("Goals sheet not found");
+      const data = await call("GET", `/values/Goals!A:B`);
+      const rows = (data.values && data.values.slice(1)) || [];
+      const yrStr = String(year);
+      const idx = rows.findIndex((r) => r && String(r[0]).trim() === yrStr);
+      if (kmGoalOrNull == null || kmGoalOrNull === "" || Number(kmGoalOrNull) <= 0) {
+        if (idx === -1) return;
+        await call("POST", `:batchUpdate`, {
+          requests: [{
+            deleteDimension: {
+              range: { sheetId, dimension: "ROWS", startIndex: idx + 1, endIndex: idx + 2 },
+            },
+          }],
+        });
+      } else {
+        const km = Math.round(Number(kmGoalOrNull));
+        if (idx === -1) {
+          await call("POST", `/values/Goals!A:B:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+            { values: [[yrStr, km]] });
+        } else {
+          await call("PUT", `/values/Goals!A${idx + 2}:B${idx + 2}?valueInputOption=RAW`,
+            { values: [[yrStr, km]] });
+        }
+      }
+    }
+
+    return { fetchAll, appendRun, deleteRunById, upsertGoal };
+  })();
+
+  // ====== mutation queue (offline resilience) =========================
+  const queue = (() => {
+    let items = [];
+
+    function load() {
+      try { items = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); }
+      catch { items = []; }
+    }
+    function persist() { localStorage.setItem(QUEUE_KEY, JSON.stringify(items)); }
+    function size() { return items.length; }
+
+    function enqueue(op) {
+      items.push({ ...op, qid: uuid(), tries: 0 });
+      persist();
+    }
+
+    async function flush() {
+      if (!items.length) return;
+      const remaining = [];
+      for (const op of items) {
+        try {
+          if (op.kind === "appendRun") await sheets.appendRun(op.run);
+          else if (op.kind === "deleteRun") await sheets.deleteRunById(op.id);
+          else if (op.kind === "upsertGoal") await sheets.upsertGoal(op.year, op.km);
+        } catch (e) {
+          op.tries = (op.tries || 0) + 1;
+          remaining.push(op);
+          console.warn("queue op failed; will retry", op, e);
+        }
+      }
+      items = remaining;
+      persist();
+    }
+
+    load();
+    return { enqueue, flush, size };
+  })();
+
+  // ====== sync orchestration ==========================================
+  const sync = (() => {
+    let pollTimer = null;
+
+    async function pullOnce() {
+      if (!auth.hasToken()) return;
+      state.syncing = true; renderStatus();
+      try {
+        const { runs, goals } = await sheets.fetchAll();
+        state.runs = runs;
+        state.goals = goals;
+        state.fetchedAt = new Date().toISOString();
+        state.online = true;
+        saveCache();
+        render();
+      } catch (e) {
+        state.online = false;
+        console.warn("pull failed", e);
+      } finally {
+        state.syncing = false;
+        renderStatus();
+      }
+    }
+
+    async function pushQueue() {
+      if (!auth.hasToken()) return;
+      if (!queue.size()) { state.online = true; renderStatus(); return; }
+      state.syncing = true; renderStatus();
+      try {
+        await queue.flush();
+        state.online = true;
+      } catch (e) {
+        state.online = false;
+      } finally {
+        state.syncing = false;
+        renderStatus();
+      }
+    }
+
+    async function tick() {
+      await pushQueue();
+      await pullOnce();
+    }
+
+    function start() {
+      stop();
+      pollTimer = setInterval(tick, POLL_INTERVAL_MS);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) tick();
+      });
+      window.addEventListener("online", tick);
+    }
+    function stop() { if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
+
+    return { tick, pullOnce, pushQueue, start, stop };
+  })();
+
+  // ====== DOM refs =====================================================
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    yearLabel: $("yearLabel"), yearPrev: $("yearPrev"), yearNext: $("yearNext"),
+    goalChip: $("goalChip"), goalLabel: $("goalLabel"),
+    signInCard: $("signInCard"), signInBtn: $("signInBtn"), signInError: $("signInError"),
+    kmNow: $("kmNow"), kmGoal: $("kmGoal"),
+    progressBar: $("progressBar"),
+    percentLabel: $("percentLabel"), remainingLabel: $("remainingLabel"),
+    diffLine: $("diffLine"), diffValue: $("diffValue"), diffText: $("diffText"),
+    runForm: $("runForm"), distInput: $("distInput"), dateInput: $("dateInput"),
+    formError: $("formError"),
+    kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
+    runsList: $("runsList"), showAllRuns: $("showAllRuns"),
+    goalActiveInput: $("goalActiveInput"), goalNextInput: $("goalNextInput"),
+    goalYear: $("goalYear"), goalNextYear: $("goalNextYear"),
+    langSelect: $("langSelect"),
+    exportBtn: $("exportBtn"), signOutBtn: $("signOutBtn"),
+    statusDot: $("statusDot"), statusText: $("statusText"),
+    toast: $("toast"),
+  };
+
+  // ====== toast ========================================================
+  let toastTimer = null;
+  function toast(msg) {
+    els.toast.textContent = msg;
+    els.toast.hidden = false;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { els.toast.hidden = true; }, 2200);
+  }
+
+  // ====== rendering ====================================================
+  let showAllRunsFlag = false;
+  let chart = null;
+
+  function render() {
+    const t = I18N[state.language];
+    document.documentElement.lang = state.language;
+
+    els.yearLabel.textContent = state.activeYear;
+    els.goalYear.textContent = state.activeYear;
+    els.goalNextYear.textContent = state.activeYear + 1;
+
+    const goal = activeGoal();
+    const today = todayISO();
+    const todayDate = parseISO(today);
+    const yearMatchesToday = todayDate.getFullYear() === state.activeYear;
+    const referenceDate = yearMatchesToday ? todayDate : new Date(state.activeYear, 11, 31);
+    const referenceISO = yearMatchesToday ? today : `${state.activeYear}-12-31`;
+
+    const cum = cumulativeUpTo(state.activeYear, referenceISO);
+    els.kmNow.textContent = formatKm1(cum);
+
+    if (goal) {
+      els.kmGoal.textContent = goal;
+      els.goalLabel.textContent = goal;
+      const pct = Math.max(0, Math.min(100, (cum / goal) * 100));
+      els.progressBar.style.width = pct.toFixed(2) + "%";
+      els.percentLabel.textContent = formatPercent((cum / goal) * 100);
+      const remaining = Math.max(0, goal - cum);
+      els.remainingLabel.textContent = `${t.remainingPrefix} ${formatKm1(remaining)} km`;
+
+      const weeksInActive = isoWeeksInYear(state.activeYear);
+      const weeklyTargetKm = goal / weeksInActive;
+      const currentKw = isoWeek(referenceDate);
+      const targetSoFar = currentKw * weeklyTargetKm;
+      const diff = Math.round((cum - targetSoFar) * 100) / 100;
+      const sign = diff > 0 ? "+" : (diff < 0 ? "-" : "±");
+      els.diffValue.textContent = `${sign}${formatKm(Math.abs(diff))} km`;
+      els.diffLine.classList.toggle("is-good", diff > 0.05);
+      els.diffLine.classList.toggle("is-bad", diff < -0.05);
+      els.diffText.textContent = diff > 0.05 ? t.ahead : (diff < -0.05 ? t.behind : t.onPace);
+    } else {
+      els.kmGoal.textContent = "—";
+      els.goalLabel.textContent = "—";
+      els.progressBar.style.width = "0%";
+      els.percentLabel.textContent = "—";
+      els.remainingLabel.textContent = t.noGoalSet;
+      els.diffValue.textContent = "—";
+      els.diffText.textContent = "";
+      els.diffLine.classList.remove("is-good", "is-bad");
+    }
+
+    // Week
+    const refKw = isoWeek(referenceDate);
+    const refKwYear = isoWeekYear(referenceDate);
+    els.kwLabel.textContent = `${t.kw} ${refKw}`;
+    const weekRuns = state.runs.filter((r) => {
+      const d = parseISO(r.date);
+      return isoWeek(d) === refKw && isoWeekYear(d) === refKwYear;
+    });
+    const weekKm = weekRuns.reduce((s, r) => s + r.distanceKm, 0);
+    const weekTarget = goal ? goal / isoWeeksInYear(state.activeYear) : 0;
+    els.weekKm.textContent = formatKm1(weekKm);
+    els.weekTarget.textContent = goal ? formatKm(weekTarget) : "—";
+    els.weekBar.style.width = goal
+      ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"
+      : "0%";
+
+    if (!els.dateInput.value) els.dateInput.value = today;
+
+    els.goalActiveInput.value = state.goals[String(state.activeYear)] || "";
+    els.goalNextInput.value = state.goals[String(state.activeYear + 1)] || "";
+    if (els.langSelect.value !== state.language) els.langSelect.value = state.language;
+
+    renderRuns();
+    renderChart();
+    renderStatus();
+  }
+
+  function renderRuns() {
+    const t = I18N[state.language];
+    const all = [...state.runs].sort((a, b) =>
+      a.date < b.date ? 1 : a.date > b.date ? -1 :
+      ((a.createdAt || "") < (b.createdAt || "") ? 1 : -1)
+    );
+    const visible = showAllRunsFlag ? all : all.slice(0, 10);
+    els.runsList.innerHTML = "";
+    for (const r of visible) {
+      const li = document.createElement("li");
+      li.className = "run-row no-dot";
+      const meta = document.createElement("div");
+      meta.className = "run-meta";
+      const date = document.createElement("span");
+      date.className = "run-date";
+      date.textContent = formatDateShort(r.date);
+      const sub = document.createElement("span");
+      sub.className = "run-sub";
+      sub.textContent = `${t.kw} ${isoWeek(parseISO(r.date))}`;
+      meta.appendChild(date); meta.appendChild(sub);
+      const km = document.createElement("span");
+      km.className = "run-km";
+      km.textContent = `${formatKm(r.distanceKm)} km`;
+      const del = document.createElement("button");
+      del.className = "run-del"; del.type = "button";
+      del.setAttribute("aria-label", "löschen");
+      del.textContent = "×";
+      del.addEventListener("click", () => {
+        if (confirm(t.confirmDelete)) {
+          state.runs = state.runs.filter((x) => x.id !== r.id);
+          saveCache();
+          queue.enqueue({ kind: "deleteRun", id: r.id });
+          render();
+          sync.pushQueue();
+          toast(t.runDeleted);
+        }
+      });
+      li.append(meta, km, del);
+      els.runsList.appendChild(li);
+    }
+    els.showAllRuns.hidden = all.length <= 10;
+    els.showAllRuns.textContent = showAllRunsFlag
+      ? (state.language === "de" ? "Weniger anzeigen" : "Show fewer")
+      : (state.language === "de" ? `Alle anzeigen (${all.length})` : `Show all (${all.length})`);
+  }
+
+  function renderStatus() {
+    const t = I18N[state.language];
+    const pending = queue.size();
+    if (state.syncing) {
+      els.statusDot.dataset.state = "syncing";
+      els.statusText.textContent = t.onlineSyncing;
+    } else if (!state.online) {
+      els.statusDot.dataset.state = "offline";
+      els.statusText.textContent = pending > 0 ? t.offlinePending(pending) : t.offline;
+    } else if (pending > 0) {
+      els.statusDot.dataset.state = "syncing";
+      els.statusText.textContent = t.offlinePending(pending);
+    } else {
+      els.statusDot.dataset.state = "online";
+      els.statusText.textContent = t.onlineSynced;
+    }
+  }
+
+  function renderChart() {
+    const goal = activeGoal();
+    const dayCount = daysInYear(state.activeYear);
+    const labels = Array.from({ length: dayCount }, (_, i) => i + 1);
+
+    const today = new Date();
+    const sameYear = today.getFullYear() === state.activeYear;
+    const todayDoy = sameYear ? dayOfYear(today) : dayCount;
+
+    const yearRuns = runsForYear(state.activeYear)
+      .map((r) => ({ doy: dayOfYear(parseISO(r.date)), km: r.distanceKm }))
+      .sort((a, b) => a.doy - b.doy);
+
+    const actual = new Array(dayCount).fill(null);
+    let acc = 0, ri = 0;
+    for (let d = 1; d <= dayCount; d++) {
+      while (ri < yearRuns.length && yearRuns[ri].doy <= d) { acc += yearRuns[ri].km; ri++; }
+      if (d <= todayDoy) actual[d - 1] = Math.round(acc * 100) / 100;
+    }
+
+    const target = goal
+      ? labels.map((d) => Math.round((goal * (d / dayCount)) * 100) / 100)
+      : labels.map(() => null);
+
+    const monthStartTicks = [];
+    for (let m = 0; m < 12; m++) monthStartTicks.push(dayOfYear(new Date(state.activeYear, m, 1)));
+
+    const ctx = document.getElementById("progressChart").getContext("2d");
+    const data = {
+      labels,
+      datasets: [
+        { label: state.language === "de" ? "Ziel-Linie" : "Target",
+          data: target, borderColor: "rgba(255,255,255,0.35)",
+          borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false },
+        { label: state.language === "de" ? "Tatsächlich" : "Actual",
+          data: actual, borderColor: "#3a6dff",
+          backgroundColor: "rgba(58,109,255,0.18)",
+          borderWidth: 2, pointRadius: 0, stepped: false, tension: 0.15, fill: true },
+      ],
+    };
+
+    const monthLabels = state.language === "de"
+      ? ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"]
+      : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    const opts = {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#9090a8", boxWidth: 10, boxHeight: 10 }, position: "bottom" },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              if (!items.length) return "";
+              const doy = items[0].label;
+              const d = new Date(state.activeYear, 0, Number(doy));
+              return d.toLocaleDateString(localeTag(), { day: "2-digit", month: "long" });
+            },
+            label: (item) => item.parsed.y == null ? null : `${item.dataset.label}: ${formatKm(item.parsed.y)} km`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(255,255,255,0.05)" },
+          ticks: {
+            color: "#9090a8", autoSkip: false,
+            callback: function (value) {
+              const idx = monthStartTicks.indexOf(Number(this.getLabelForValue(value)));
+              return idx >= 0 ? monthLabels[idx] : "";
+            },
+          },
+        },
+        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#9090a8" }, beginAtZero: true },
+      },
+    };
+
+    if (chart) { chart.data = data; chart.options = opts; chart.update(); }
+    else { chart = new Chart(ctx, { type: "line", data, options: opts }); }
+  }
+
+  function renderSignedInVisibility() {
+    const signedIn = auth.hasToken();
+    els.signInCard.hidden = signedIn;
+  }
+
+  // ====== mutations =====================================================
+  function addRun(distanceKm, dateISO) {
+    const run = {
+      id: uuid(),
+      date: dateISO,
+      distanceKm,
+      createdAt: new Date().toISOString(),
+      source: "web",
+    };
+    state.runs.push(run);
+    saveCache();
+    queue.enqueue({ kind: "appendRun", run });
+    return run;
+  }
+
+  function setGoal(year, kmOrNull) {
+    const yrStr = String(year);
+    if (kmOrNull == null || kmOrNull === "" || Number(kmOrNull) <= 0) {
+      delete state.goals[yrStr];
+    } else {
+      state.goals[yrStr] = Math.round(Number(kmOrNull));
+    }
+    saveCache();
+    queue.enqueue({ kind: "upsertGoal", year: yrStr, km: state.goals[yrStr] || null });
+  }
+
+  function setLanguage(lang) {
+    if (!I18N[lang]) return;
+    state.language = lang;
+    saveSettings();
+  }
+
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify({ runs: state.runs, goals: state.goals }, null, 2)],
+      { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `laufziel-backup-${todayISO()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ====== events =======================================================
+  function wire() {
+    els.yearPrev.addEventListener("click", () => { state.activeYear -= 1; saveSettings(); render(); });
+    els.yearNext.addEventListener("click", () => { state.activeYear += 1; saveSettings(); render(); });
+
+    els.goalChip.addEventListener("click", () => {
+      const t = I18N[state.language];
+      const cur = state.goals[String(state.activeYear)] || "";
+      const ans = prompt(`${t.goalPrefix} ${state.activeYear} (km):`, cur);
+      if (ans === null) return;
+      setGoal(state.activeYear, ans.trim());
+      render();
+      sync.pushQueue();
+      toast(t.goalUpdated);
+    });
+
+    els.runForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const t = I18N[state.language];
+      els.formError.hidden = true;
+      const km = parseDistance(els.distInput.value);
+      if (!km) {
+        els.formError.textContent = t.formErrInvalid;
+        els.formError.hidden = false;
+        return;
+      }
+      const dateISO = els.dateInput.value || todayISO();
+      const yr = Number(dateISO.slice(0, 4));
+      if (!state.goals[String(yr)] && yr !== state.activeYear) state.activeYear = yr;
+      addRun(km, dateISO);
+      els.distInput.value = "";
+      els.dateInput.value = todayISO();
+      render();
+      sync.pushQueue();
+      toast(t.runAdded);
+    });
+
+    els.goalActiveInput.addEventListener("change", () => {
+      setGoal(state.activeYear, els.goalActiveInput.value);
+      render(); sync.pushQueue();
+      toast(I18N[state.language].goalUpdated);
+    });
+    els.goalNextInput.addEventListener("change", () => {
+      setGoal(state.activeYear + 1, els.goalNextInput.value);
+      render(); sync.pushQueue();
+      toast(I18N[state.language].goalUpdated);
+    });
+    els.langSelect.addEventListener("change", () => { setLanguage(els.langSelect.value); render(); });
+
+    els.exportBtn.addEventListener("click", exportJSON);
+
+    els.signInBtn.addEventListener("click", async () => {
+      els.signInError.hidden = true;
+      try {
+        await auth.signIn();
+        renderSignedInVisibility();
+        await sync.tick();
+      } catch (e) {
+        els.signInError.textContent = `${I18N[state.language].signInFailed}: ${e.message}`;
+        els.signInError.hidden = false;
+      }
+    });
+
+    els.signOutBtn.addEventListener("click", () => {
+      auth.signOut();
+      renderSignedInVisibility();
+      toast(I18N[state.language].signedOut);
+    });
+
+    els.showAllRuns.addEventListener("click", () => { showAllRunsFlag = !showAllRunsFlag; renderRuns(); });
+  }
+
+  // ====== boot ==========================================================
+  function checkConfig() {
+    if (GOOGLE_OAUTH_CLIENT_ID.startsWith("REPLACE_") || SPREADSHEET_ID.startsWith("REPLACE_")) {
+      const t = I18N[state.language];
+      els.signInError.textContent = t.configMissing;
+      els.signInError.hidden = false;
+      els.signInBtn.disabled = true;
+      return false;
+    }
+    return true;
+  }
+
+  function boot() {
+    loadCacheAndSettings();
+    auth.init();
+    wire();
+    render();
+    renderSignedInVisibility();
+    if (!checkConfig()) return;
+    sync.start();
+    if (auth.hasToken()) {
+      sync.tick();
+    }
+  }
+
+  // GIS may load after our script; defer until DOM + GIS both ready.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
