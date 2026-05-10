@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#0a0a0f" />
   <title>Laufziel</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -14,24 +15,26 @@
   <main class="app">
 
     <header class="topbar">
-      <div class="topbar-year">
-        <button class="year-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
+      <div class="topbar-row main">
         <div class="year" id="yearLabel">2026</div>
+        <div class="user-chip" id="userChip" hidden>
+          <button class="user-chip-btn" id="userChipBtn" type="button" data-i18n-attr="aria-label|account" aria-label="Konto">
+            <span class="user-avatar" id="userChipAvatar"></span>
+            <span class="user-name" id="userChipName"></span>
+          </button>
+          <div class="user-popover" id="userPopover" hidden role="menu">
+            <div class="user-popover-name"  id="userPopoverName"></div>
+            <div class="user-popover-email" id="userPopoverEmail"></div>
+            <button class="secondary block" id="userPopoverSignOut" type="button" data-i18n="signOut">Abmelden</button>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-row controls">
+        <button class="year-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
         <button class="year-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
         <button class="goal-chip" id="goalChip" type="button">
           <span data-i18n="goalPrefix">Ziel</span> <span id="goalLabel">1000</span> km
         </button>
-      </div>
-      <div class="user-chip" id="userChip" hidden>
-        <button class="user-chip-btn" id="userChipBtn" type="button" data-i18n-attr="aria-label|account" aria-label="Konto">
-          <span class="user-avatar" id="userChipAvatar"></span>
-          <span class="user-name" id="userChipName"></span>
-        </button>
-        <div class="user-popover" id="userPopover" hidden role="menu">
-          <div class="user-popover-name"  id="userPopoverName"></div>
-          <div class="user-popover-email" id="userPopoverEmail"></div>
-          <button class="secondary block" id="userPopoverSignOut" type="button" data-i18n="signOut">Abmelden</button>
-        </div>
       </div>
     </header>
 

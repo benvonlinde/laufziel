@@ -671,6 +671,8 @@
     const cum = cumulativeUpTo(state.activeYear, referenceISO);
     els.kmNow.textContent = formatKm1(cum);
 
+    const isCurrentYear = todayDate.getFullYear() === state.activeYear;
+
     if (goal) {
       els.kmGoal.textContent = goal;
       els.goalLabel.textContent = goal;
@@ -680,61 +682,74 @@
       const remaining = Math.max(0, goal - cum);
       els.remainingLabel.textContent = `${t.remainingPrefix} ${formatKm1(remaining)} km`;
 
-      const weeksInActive = isoWeeksInYear(state.activeYear);
-      const weeklyTargetKm = goal / weeksInActive;
-      const currentKw = isoWeek(referenceDate);
-      const targetSoFar = currentKw * weeklyTargetKm;
-      const diff = Math.round((cum - targetSoFar) * 100) / 100;
-      const sign = diff > 0 ? "+" : (diff < 0 ? "-" : "±");
-      els.diffValue.textContent = `${sign}${formatKm(Math.abs(diff))} km`;
-      els.diffLine.classList.toggle("is-good", diff > 0.05);
-      els.diffLine.classList.toggle("is-bad", diff < -0.05);
-      els.diffText.textContent = diff > 0.05 ? t.ahead : (diff < -0.05 ? t.behind : t.onPace);
+      if (isCurrentYear) {
+        const weeksInActive = isoWeeksInYear(state.activeYear);
+        const weeklyTargetKm = goal / weeksInActive;
+        const currentKw = isoWeek(referenceDate);
+        const targetSoFar = currentKw * weeklyTargetKm;
+        const diff = Math.round((cum - targetSoFar) * 100) / 100;
+        const sign = diff > 0 ? "+" : (diff < 0 ? "-" : "±");
+        els.diffValue.textContent = `${sign}${formatKm(Math.abs(diff))} km`;
+        els.diffLine.classList.toggle("is-good", diff > 0.05);
+        els.diffLine.classList.toggle("is-bad", diff < -0.05);
+        els.diffText.textContent = diff > 0.05 ? t.ahead : (diff < -0.05 ? t.behind : t.onPace);
+        els.diffLine.hidden = false;
+      } else {
+        els.diffLine.hidden = true;
+        els.diffLine.classList.remove("is-good", "is-bad");
+      }
     } else {
       els.kmGoal.textContent = "—";
       els.goalLabel.textContent = "—";
       els.progressBar.style.width = "0%";
       els.percentLabel.textContent = "—";
       els.remainingLabel.textContent = t.noGoalSet;
-      els.diffValue.textContent = "—";
-      els.diffText.textContent = "";
+      els.diffLine.hidden = true;
       els.diffLine.classList.remove("is-good", "is-bad");
     }
 
-    // Week
-    const refKw = isoWeek(referenceDate);
-    const refKwYear = isoWeekYear(referenceDate);
-    els.kwLabel.textContent = `${t.kw} ${refKw}`;
-    const weekRuns = state.runs.filter((r) => {
-      const d = parseISO(r.date);
-      return isoWeek(d) === refKw && isoWeekYear(d) === refKwYear;
-    });
-    const weekKm = weekRuns.reduce((s, r) => s + r.distanceKm, 0);
-    const weekTarget = goal ? goal / isoWeeksInYear(state.activeYear) : 0;
-    els.weekKm.textContent = formatKm1(weekKm);
-    els.weekTarget.textContent = goal ? formatKm(weekTarget) : "—";
-    els.weekBar.style.width = goal
-      ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"
-      : "0%";
+    // Week — only show real numbers when viewing the current year.
+    if (isCurrentYear) {
+      const refKw = isoWeek(referenceDate);
+      const refKwYear = isoWeekYear(referenceDate);
+      els.kwLabel.textContent = `${t.kw} ${refKw}`;
+      const weekRuns = state.runs.filter((r) => {
+        const d = parseISO(r.date);
+        return isoWeek(d) === refKw && isoWeekYear(d) === refKwYear;
+      });
+      const weekKm = weekRuns.reduce((s, r) => s + r.distanceKm, 0);
+      const weekTarget = goal ? goal / isoWeeksInYear(state.activeYear) : 0;
+      els.weekKm.textContent = formatKm1(weekKm);
+      els.weekTarget.textContent = goal ? formatKm(weekTarget) : "—";
+      els.weekBar.style.width = goal
+        ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"
+        : "0%";
 
-    // Weekly Differenz (milestone semantics: green as soon as the week target is reached)
-    if (els.weekDiffLine && els.weekDiffValue && els.weekDiffText) {
-      if (goal) {
-        const wDiff = Math.round((weekKm - weekTarget) * 100) / 100;
-        els.weekDiffLine.classList.remove("is-good", "is-bad");
-        if (wDiff >= 0) {
-          els.weekDiffLine.classList.add("is-good");
-          els.weekDiffValue.textContent = `+${formatKm(wDiff)} km`;
-          els.weekDiffText.textContent = t.weekReached;
+      if (els.weekDiffLine && els.weekDiffValue && els.weekDiffText) {
+        if (goal) {
+          const wDiff = Math.round((weekKm - weekTarget) * 100) / 100;
+          els.weekDiffLine.classList.remove("is-good", "is-bad");
+          if (wDiff >= 0) {
+            els.weekDiffLine.classList.add("is-good");
+            els.weekDiffValue.textContent = `+${formatKm(wDiff)} km`;
+            els.weekDiffText.textContent = t.weekReached;
+          } else {
+            els.weekDiffLine.classList.add("is-bad");
+            els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
+            els.weekDiffText.textContent = t.behind;
+          }
+          els.weekDiffLine.hidden = false;
         } else {
-          els.weekDiffLine.classList.add("is-bad");
-          els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
-          els.weekDiffText.textContent = t.behind;
+          els.weekDiffLine.hidden = true;
         }
-        els.weekDiffLine.hidden = false;
-      } else {
-        els.weekDiffLine.hidden = true;
       }
+    } else {
+      // Past or future year — show dashes; hide weekly Differenz.
+      els.kwLabel.textContent = "";
+      els.weekKm.textContent = "—";
+      els.weekTarget.textContent = "—";
+      els.weekBar.style.width = "0%";
+      if (els.weekDiffLine) els.weekDiffLine.hidden = true;
     }
 
     if (!els.dateInput.value) els.dateInput.value = today;
@@ -753,10 +768,13 @@
 
   function renderRuns() {
     const t = I18N[state.language];
-    const all = [...state.runs].sort((a, b) =>
-      a.date < b.date ? 1 : a.date > b.date ? -1 :
-      ((a.createdAt || "") < (b.createdAt || "") ? 1 : -1)
-    );
+    const yearStr = String(state.activeYear) + "-";
+    const all = state.runs
+      .filter((r) => r.date.startsWith(yearStr))
+      .sort((a, b) =>
+        a.date < b.date ? 1 : a.date > b.date ? -1 :
+        ((a.createdAt || "") < (b.createdAt || "") ? 1 : -1)
+      );
     const visible = showAllRunsFlag ? all : all.slice(0, RUNS_DEFAULT_LIMIT);
     els.runsList.innerHTML = "";
     for (const r of visible) {
