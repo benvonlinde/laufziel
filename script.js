@@ -24,6 +24,11 @@
       onPace: "auf Kurs",
       weekReached: "Wochenziel erreicht",
       remainingPrefix: "noch",
+      goalReached: "Ziel erreicht",
+      kmUnderGoal: (n) => `${formatKm(n)} km unter Ziel`,
+      kmOverGoal: (n) => `+${formatKm(n)} km über Ziel`,
+      startsInDays: (n) => n === 1 ? "beginnt morgen" : `beginnt in ${n} Tagen`,
+      startsToday: "beginnt heute",
       kw: "KW",
       kwShort: "KW",
       goalPrefix: "Ziel",
@@ -78,6 +83,11 @@
       onPace: "on pace",
       weekReached: "weekly goal reached",
       remainingPrefix: "remaining",
+      goalReached: "Goal reached",
+      kmUnderGoal: (n) => `${formatKm(n)} km below goal`,
+      kmOverGoal: (n) => `+${formatKm(n)} km above goal`,
+      startsInDays: (n) => n === 1 ? "starts tomorrow" : `starts in ${n} days`,
+      startsToday: "starts today",
       kw: "Week",
       kwShort: "Wk",
       goalPrefix: "Goal",
@@ -199,6 +209,14 @@
   function formatPercent(n) { return n.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %"; }
   function formatDateShort(iso) {
     return parseISO(iso).toLocaleDateString(localeTag(), { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  function formatDateLong(iso) {
+    return parseISO(iso).toLocaleDateString(localeTag(), { day: "numeric", month: "long", year: "numeric" });
+  }
+  function updateDateDisplay() {
+    if (!els.dateDisplayText || !els.dateInput) return;
+    const v = els.dateInput.value;
+    els.dateDisplayText.textContent = v ? formatDateLong(v) : "—";
   }
   function localeTag() { return state.language === "en" ? "en-US" : "de-DE"; }
 
@@ -617,6 +635,7 @@
     percentLabel: $("percentLabel"), remainingLabel: $("remainingLabel"),
     diffLine: $("diffLine"), diffValue: $("diffValue"), diffText: $("diffText"),
     runForm: $("runForm"), distInput: $("distInput"), dateInput: $("dateInput"),
+    dateDisplayText: $("dateDisplayText"),
     formError: $("formError"),
     kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
     weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"),
@@ -653,6 +672,129 @@
   let showAllRunsFlag = false;
   let chart = null;
 
+  function renderHeroCurrent(t, goal, todayDate) {
+    const referenceISO = todayISO();
+    const cum = cumulativeUpTo(state.activeYear, referenceISO);
+    els.kmNow.textContent = formatKm1(cum);
+
+    if (goal) {
+      els.kmGoal.textContent = goal;
+      els.goalLabel.textContent = goal;
+      const pct = Math.max(0, Math.min(100, (cum / goal) * 100));
+      els.progressBar.style.width = pct.toFixed(2) + "%";
+      els.percentLabel.textContent = formatPercent((cum / goal) * 100);
+      const remaining = Math.max(0, goal - cum);
+      els.remainingLabel.textContent = `${t.remainingPrefix} ${formatKm1(remaining)} km`;
+
+      const weeksInActive = isoWeeksInYear(state.activeYear);
+      const weeklyTargetKm = goal / weeksInActive;
+      const currentKw = isoWeek(todayDate);
+      const targetSoFar = currentKw * weeklyTargetKm;
+      const diff = Math.round((cum - targetSoFar) * 100) / 100;
+      const sign = diff > 0 ? "+" : (diff < 0 ? "-" : "±");
+      els.diffValue.textContent = `${sign}${formatKm(Math.abs(diff))} km`;
+      els.diffLine.classList.toggle("is-good", diff > 0.05);
+      els.diffLine.classList.toggle("is-bad", diff < -0.05);
+      els.diffText.textContent = diff > 0.05 ? t.ahead : (diff < -0.05 ? t.behind : t.onPace);
+      els.diffLine.hidden = false;
+    } else {
+      els.kmGoal.textContent = "—";
+      els.goalLabel.textContent = "—";
+      els.progressBar.style.width = "0%";
+      els.percentLabel.textContent = "—";
+      els.remainingLabel.textContent = t.noGoalSet;
+      els.diffLine.hidden = true;
+      els.diffLine.classList.remove("is-good", "is-bad");
+    }
+  }
+
+  function renderHeroPast(t, goal) {
+    const cum = runsForYear(state.activeYear).reduce((s, r) => s + r.distanceKm, 0);
+    els.kmNow.textContent = formatKm1(cum);
+
+    if (goal) {
+      els.kmGoal.textContent = goal;
+      els.goalLabel.textContent = goal;
+      const pct = Math.max(0, Math.min(100, (cum / goal) * 100));
+      els.progressBar.style.width = pct.toFixed(2) + "%";
+      els.percentLabel.textContent = formatPercent((cum / goal) * 100);
+      const remaining = Math.max(0, goal - cum);
+      els.remainingLabel.textContent = remaining > 0
+        ? `${t.remainingPrefix} ${formatKm1(remaining)} km`
+        : "";
+
+      const delta = Math.round((cum - goal) * 100) / 100;
+      els.diffLine.classList.remove("is-good", "is-bad");
+      if (delta >= 0) {
+        els.diffLine.classList.add("is-good");
+        els.diffValue.textContent = `+${formatKm(delta)} km`;
+        els.diffText.textContent = t.goalReached;
+      } else {
+        els.diffLine.classList.add("is-bad");
+        els.diffValue.textContent = `${formatKm(delta)} km`;
+        els.diffText.textContent = "";
+      }
+      els.diffLine.hidden = false;
+    } else {
+      els.kmGoal.textContent = "—";
+      els.goalLabel.textContent = "—";
+      els.progressBar.style.width = "0%";
+      els.percentLabel.textContent = "—";
+      els.remainingLabel.textContent = t.noGoalSet;
+      els.diffLine.hidden = true;
+      els.diffLine.classList.remove("is-good", "is-bad");
+    }
+  }
+
+  function renderHeroFuture(t, goal, todayDate) {
+    els.kmNow.textContent = goal ? String(goal) : "—";
+    els.kmGoal.textContent = goal || "—";
+    els.goalLabel.textContent = goal || "—";
+    els.progressBar.style.width = "0%";
+    els.percentLabel.textContent = "—";
+    const startDate = new Date(state.activeYear, 0, 1);
+    const days = Math.max(0, Math.ceil((startDate - todayDate) / 86_400_000));
+    els.remainingLabel.textContent = days === 0 ? t.startsToday : t.startsInDays(days);
+    els.diffLine.hidden = true;
+    els.diffLine.classList.remove("is-good", "is-bad");
+  }
+
+  function renderWeekCurrent(t, goal, todayDate) {
+    const refKw = isoWeek(todayDate);
+    const refKwYear = isoWeekYear(todayDate);
+    els.kwLabel.textContent = `${t.kw} ${refKw}`;
+    const weekRuns = state.runs.filter((r) => {
+      const d = parseISO(r.date);
+      return isoWeek(d) === refKw && isoWeekYear(d) === refKwYear;
+    });
+    const weekKm = weekRuns.reduce((s, r) => s + r.distanceKm, 0);
+    const weekTarget = goal ? goal / isoWeeksInYear(state.activeYear) : 0;
+    els.weekKm.textContent = formatKm1(weekKm);
+    els.weekTarget.textContent = goal ? formatKm(weekTarget) : "—";
+    els.weekBar.style.width = goal
+      ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"
+      : "0%";
+
+    if (els.weekDiffLine && els.weekDiffValue && els.weekDiffText) {
+      if (goal) {
+        const wDiff = Math.round((weekKm - weekTarget) * 100) / 100;
+        els.weekDiffLine.classList.remove("is-good", "is-bad");
+        if (wDiff >= 0) {
+          els.weekDiffLine.classList.add("is-good");
+          els.weekDiffValue.textContent = `+${formatKm(wDiff)} km`;
+          els.weekDiffText.textContent = t.weekReached;
+        } else {
+          els.weekDiffLine.classList.add("is-bad");
+          els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
+          els.weekDiffText.textContent = t.behind;
+        }
+        els.weekDiffLine.hidden = false;
+      } else {
+        els.weekDiffLine.hidden = true;
+      }
+    }
+  }
+
   function render() {
     const t = I18N[state.language];
     document.documentElement.lang = state.language;
@@ -664,95 +806,20 @@
     const goal = activeGoal();
     const today = todayISO();
     const todayDate = parseISO(today);
-    const yearMatchesToday = todayDate.getFullYear() === state.activeYear;
-    const referenceDate = yearMatchesToday ? todayDate : new Date(state.activeYear, 11, 31);
-    const referenceISO = yearMatchesToday ? today : `${state.activeYear}-12-31`;
+    const todayYear = todayDate.getFullYear();
+    const yearMode =
+      state.activeYear < todayYear ? "past" :
+      state.activeYear > todayYear ? "future" : "current";
+    document.body.dataset.yearMode = yearMode;
 
-    const cum = cumulativeUpTo(state.activeYear, referenceISO);
-    els.kmNow.textContent = formatKm1(cum);
+    if (yearMode === "current") renderHeroCurrent(t, goal, todayDate);
+    else if (yearMode === "past") renderHeroPast(t, goal);
+    else renderHeroFuture(t, goal, todayDate);
 
-    const isCurrentYear = todayDate.getFullYear() === state.activeYear;
-
-    if (goal) {
-      els.kmGoal.textContent = goal;
-      els.goalLabel.textContent = goal;
-      const pct = Math.max(0, Math.min(100, (cum / goal) * 100));
-      els.progressBar.style.width = pct.toFixed(2) + "%";
-      els.percentLabel.textContent = formatPercent((cum / goal) * 100);
-      const remaining = Math.max(0, goal - cum);
-      els.remainingLabel.textContent = `${t.remainingPrefix} ${formatKm1(remaining)} km`;
-
-      if (isCurrentYear) {
-        const weeksInActive = isoWeeksInYear(state.activeYear);
-        const weeklyTargetKm = goal / weeksInActive;
-        const currentKw = isoWeek(referenceDate);
-        const targetSoFar = currentKw * weeklyTargetKm;
-        const diff = Math.round((cum - targetSoFar) * 100) / 100;
-        const sign = diff > 0 ? "+" : (diff < 0 ? "-" : "±");
-        els.diffValue.textContent = `${sign}${formatKm(Math.abs(diff))} km`;
-        els.diffLine.classList.toggle("is-good", diff > 0.05);
-        els.diffLine.classList.toggle("is-bad", diff < -0.05);
-        els.diffText.textContent = diff > 0.05 ? t.ahead : (diff < -0.05 ? t.behind : t.onPace);
-        els.diffLine.hidden = false;
-      } else {
-        els.diffLine.hidden = true;
-        els.diffLine.classList.remove("is-good", "is-bad");
-      }
-    } else {
-      els.kmGoal.textContent = "—";
-      els.goalLabel.textContent = "—";
-      els.progressBar.style.width = "0%";
-      els.percentLabel.textContent = "—";
-      els.remainingLabel.textContent = t.noGoalSet;
-      els.diffLine.hidden = true;
-      els.diffLine.classList.remove("is-good", "is-bad");
-    }
-
-    // Week — only show real numbers when viewing the current year.
-    if (isCurrentYear) {
-      const refKw = isoWeek(referenceDate);
-      const refKwYear = isoWeekYear(referenceDate);
-      els.kwLabel.textContent = `${t.kw} ${refKw}`;
-      const weekRuns = state.runs.filter((r) => {
-        const d = parseISO(r.date);
-        return isoWeek(d) === refKw && isoWeekYear(d) === refKwYear;
-      });
-      const weekKm = weekRuns.reduce((s, r) => s + r.distanceKm, 0);
-      const weekTarget = goal ? goal / isoWeeksInYear(state.activeYear) : 0;
-      els.weekKm.textContent = formatKm1(weekKm);
-      els.weekTarget.textContent = goal ? formatKm(weekTarget) : "—";
-      els.weekBar.style.width = goal
-        ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"
-        : "0%";
-
-      if (els.weekDiffLine && els.weekDiffValue && els.weekDiffText) {
-        if (goal) {
-          const wDiff = Math.round((weekKm - weekTarget) * 100) / 100;
-          els.weekDiffLine.classList.remove("is-good", "is-bad");
-          if (wDiff >= 0) {
-            els.weekDiffLine.classList.add("is-good");
-            els.weekDiffValue.textContent = `+${formatKm(wDiff)} km`;
-            els.weekDiffText.textContent = t.weekReached;
-          } else {
-            els.weekDiffLine.classList.add("is-bad");
-            els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
-            els.weekDiffText.textContent = t.behind;
-          }
-          els.weekDiffLine.hidden = false;
-        } else {
-          els.weekDiffLine.hidden = true;
-        }
-      }
-    } else {
-      // Past or future year — show dashes; hide weekly Differenz.
-      els.kwLabel.textContent = "";
-      els.weekKm.textContent = "—";
-      els.weekTarget.textContent = "—";
-      els.weekBar.style.width = "0%";
-      if (els.weekDiffLine) els.weekDiffLine.hidden = true;
-    }
+    if (yearMode === "current") renderWeekCurrent(t, goal, todayDate);
 
     if (!els.dateInput.value) els.dateInput.value = today;
+    updateDateDisplay();
 
     els.goalActiveInput.value = state.goals[String(state.activeYear)] || "";
     els.goalNextInput.value = state.goals[String(state.activeYear + 1)] || "";
@@ -1031,6 +1098,11 @@
       toast(t.goalUpdated);
     });
 
+    if (els.dateInput) {
+      els.dateInput.addEventListener("change", updateDateDisplay);
+      els.dateInput.addEventListener("input", updateDateDisplay);
+    }
+
     els.runForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const t = I18N[state.language];
@@ -1047,6 +1119,7 @@
       addRun(km, dateISO);
       els.distInput.value = "";
       els.dateInput.value = todayISO();
+      updateDateDisplay();
       render();
       sync.pushQueue();
       toast(t.runAdded);

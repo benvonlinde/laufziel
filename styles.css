@@ -38,12 +38,13 @@ input, select { font: inherit; color: inherit; }
 
 .muted { color: var(--muted); }
 
-/* Topbar — two rows: year + profile on top, controls below */
+/* Topbar — two rows: year (with arrows) + profile on top, goal chip below */
 .topbar { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 6px; }
 .topbar-row { display: flex; align-items: center; gap: 8px; }
 .topbar-row.main     { justify-content: space-between; }
 .topbar-row.controls { justify-content: flex-start; }
-.year { font-size: clamp(28px, 8vw, 36px); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.year-group { display: flex; align-items: center; gap: 6px; }
+.year { font-size: clamp(28px, 8vw, 36px); font-weight: 700; letter-spacing: -0.02em; line-height: 1; min-width: 4ch; text-align: center; }
 .year-btn {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -61,8 +62,7 @@ input, select { font: inherit; color: inherit; }
   border-radius: 999px;
   padding: 0 14px;
   font-size: 13px;
-  height: 40px;
-  margin-left: 4px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
 }
@@ -192,6 +192,17 @@ input, select { font: inherit; color: inherit; }
   border-radius: 10px;
   background: var(--surface-2);
 }
+.diff[hidden] { display: none; }
+
+/* Year-mode visibility — hide sections that don't apply to past/future years. */
+body[data-year-mode="past"] .add-form,
+body[data-year-mode="past"] .week,
+body[data-year-mode="future"] .add-form,
+body[data-year-mode="future"] .week,
+body[data-year-mode="future"] .runs { display: none; }
+/* Future-year hero: dim the giant number since it's just the goal preview, not a real total. */
+body[data-year-mode="future"] .hero .km-now { color: var(--muted); font-weight: 600; }
+body[data-year-mode="future"] .hero .km-of  { display: none; }
 .diff.is-good .diff-value { color: var(--good); }
 .diff.is-bad  .diff-value { color: var(--bad); }
 .diff-value { font-weight: 700; font-size: clamp(16px, 4.4vw, 18px); }
@@ -220,13 +231,60 @@ input, select { font: inherit; color: inherit; }
   font-family: inherit;
   line-height: 48px;
 }
-.field input[type="date"] {
-  padding-right: 8px;
-  line-height: normal;
+/* Date field — visible chip + invisible native input layered on top so iOS
+   still opens its native wheel picker but the visible surface matches the
+   distance input exactly regardless of native intrinsic min-width. */
+.date-field {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 48px;
+  min-width: 0;
 }
-.field input[type="date"]::-webkit-date-and-time-value { text-align: left; }
-.field input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) opacity(0.6);
+.date-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 16px;
+  color: var(--text);
+  height: 48px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.date-chevron { color: var(--muted); font-size: 14px; flex: 0 0 auto; }
+.date-field input[type="date"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 16px; /* avoid iOS auto-zoom on focus */
+}
+.date-field input[type="date"]:focus { outline: none; }
+.date-field:focus-within .date-display {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   cursor: pointer;
 }
 .field input:focus, .field select:focus {

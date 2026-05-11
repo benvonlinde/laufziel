@@ -16,7 +16,11 @@
 
     <header class="topbar">
       <div class="topbar-row main">
-        <div class="year" id="yearLabel">2026</div>
+        <div class="year-group">
+          <button class="year-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
+          <div class="year" id="yearLabel">2026</div>
+          <button class="year-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
+        </div>
         <div class="user-chip" id="userChip" hidden>
           <button class="user-chip-btn" id="userChipBtn" type="button" data-i18n-attr="aria-label|account" aria-label="Konto">
             <span class="user-avatar" id="userChipAvatar"></span>
@@ -30,10 +34,8 @@
         </div>
       </div>
       <div class="topbar-row controls">
-        <button class="year-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
-        <button class="year-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
         <button class="goal-chip" id="goalChip" type="button">
-          <span data-i18n="goalPrefix">Ziel</span> <span id="goalLabel">1000</span> km
+          <span id="goalLabel">1000</span> km
         </button>
       </div>
     </header>
@@ -57,7 +59,13 @@
           </label>
           <label class="field">
             <span data-i18n="dateLabel">Datum</span>
-            <input id="dateInput" type="date" required />
+            <span class="date-field">
+              <span class="date-display" aria-hidden="true">
+                <span id="dateDisplayText">—</span>
+                <span class="date-chevron">▾</span>
+              </span>
+              <input id="dateInput" type="date" required />
+            </span>
           </label>
         </div>
         <button type="submit" class="primary" data-i18n="submitRun">Lauf eintragen</button>
