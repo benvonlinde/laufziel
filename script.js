@@ -635,6 +635,9 @@
     percentLabel: $("percentLabel"), remainingLabel: $("remainingLabel"),
     diffLine: $("diffLine"), diffValue: $("diffValue"), diffText: $("diffText"), diffDot: $("diffDot"),
     paceTarget: $("paceTarget"),
+    heroCard: document.querySelector(".hero[data-signed-in-only]"),
+    weekCard: document.querySelector(".card.week"),
+    chartTitle: $("chartTitle"),
     runForm: $("runForm"), distInput: $("distInput"), dateInput: $("dateInput"),
     dateDisplayText: $("dateDisplayText"),
     formError: $("formError"),
@@ -716,6 +719,13 @@
         els.paceTarget.style.left = pacePct.toFixed(2) + "%";
         els.paceTarget.hidden = false;
       }
+
+      // Stateful surface: tint the whole hero card when meaningfully off-pace.
+      const tolerance = goal * 0.01;
+      if (els.heroCard) {
+        els.heroCard.classList.toggle("hero--ahead",  diff >  tolerance);
+        els.heroCard.classList.toggle("hero--behind", diff < -tolerance);
+      }
     } else {
       els.kmGoal.textContent = "—";
       els.goalLabel.textContent = "—";
@@ -725,6 +735,7 @@
       els.diffLine.hidden = true;
       setDiffVariant(els.diffLine, els.diffDot, "ahead");
       if (els.paceTarget) els.paceTarget.hidden = true;
+      if (els.heroCard) els.heroCard.classList.remove("hero--ahead", "hero--behind");
     }
   }
 
@@ -755,6 +766,12 @@
       }
       els.diffLine.hidden = false;
       if (els.paceTarget) els.paceTarget.hidden = true;
+
+      // Stateful surface for closed years: green if hit, red if missed.
+      if (els.heroCard) {
+        els.heroCard.classList.toggle("hero--ahead",  cum >= goal);
+        els.heroCard.classList.toggle("hero--behind", cum <  goal);
+      }
     } else {
       els.kmGoal.textContent = "—";
       els.goalLabel.textContent = "—";
@@ -764,6 +781,7 @@
       els.diffLine.hidden = true;
       setDiffVariant(els.diffLine, els.diffDot, "ahead");
       if (els.paceTarget) els.paceTarget.hidden = true;
+      if (els.heroCard) els.heroCard.classList.remove("hero--ahead", "hero--behind");
     }
   }
 
@@ -779,6 +797,7 @@
     els.diffLine.hidden = true;
     setDiffVariant(els.diffLine, els.diffDot, "ahead");
     if (els.paceTarget) els.paceTarget.hidden = true;
+    if (els.heroCard) els.heroCard.classList.remove("hero--ahead", "hero--behind");
   }
 
   function renderWeekCurrent(t, goal, todayDate) {
@@ -810,8 +829,15 @@
           els.weekDiffText.textContent = t.behind;
         }
         els.weekDiffLine.hidden = false;
+
+        // Stateful surface for the weekly card with ±2 km tolerance.
+        if (els.weekCard) {
+          els.weekCard.classList.toggle("card--ahead",  wDiff >  2);
+          els.weekCard.classList.toggle("card--behind", wDiff < -2);
+        }
       } else {
         els.weekDiffLine.hidden = true;
+        if (els.weekCard) els.weekCard.classList.remove("card--ahead", "card--behind");
       }
     }
   }
@@ -838,6 +864,7 @@
     else renderHeroFuture(t, goal, todayDate);
 
     if (yearMode === "current") renderWeekCurrent(t, goal, todayDate);
+    else if (els.weekCard) els.weekCard.classList.remove("card--ahead", "card--behind");
 
     if (!els.dateInput.value) els.dateInput.value = today;
     updateDateDisplay();
@@ -981,21 +1008,19 @@
     const css = getComputedStyle(document.documentElement);
     const tok = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
     const colLine   = tok("--chart-line",   "#FF5C42");
-    const colFill   = tok("--chart-fill",   "rgba(255,92,66,0.22)");
     const colTarget = tok("--chart-target", "rgba(244,240,232,0.40)");
-    const colAxis   = tok("--chart-axis",   "rgba(244,240,232,0.35)");
-    const colGrid   = tok("--chart-grid",   "rgba(244,240,232,0.06)");
 
     const data = {
       labels,
       datasets: [
         { label: state.language === "de" ? "Ziel" : "Target",
           data: target, borderColor: colTarget,
-          borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false },
+          borderDash: [3, 5], borderWidth: 1.5, borderCapStyle: "round",
+          pointRadius: 0, tension: 0, fill: false },
         { label: state.language === "de" ? "Ist" : "Actual",
           data: actual, borderColor: colLine,
-          backgroundColor: colFill,
-          borderWidth: 2, pointRadius: 0, stepped: false, tension: 0.15, fill: true },
+          borderWidth: 2.5, tension: 0.35, fill: false,
+          pointRadius: 0, pointHoverRadius: 0 },
       ],
     };
 
@@ -1007,8 +1032,9 @@
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { color: colAxis, boxWidth: 10, boxHeight: 10, font: { family: "Geist Mono, ui-monospace, monospace", size: 11 } }, position: "bottom" },
+        legend: { display: false },
         tooltip: {
+          enabled: true,
           backgroundColor: tok("--surface-1", "#181B22"),
           titleColor: tok("--text", "#F4F0E8"),
           bodyColor: tok("--text", "#F4F0E8"),
@@ -1027,21 +1053,26 @@
           },
         },
       },
-      scales: {
-        x: {
-          grid: { color: colGrid },
-          ticks: {
-            color: colAxis, autoSkip: false,
-            font: { family: "Geist Mono, ui-monospace, monospace", size: 11 },
-            callback: function (value) {
-              const idx = monthStartTicks.indexOf(Number(this.getLabelForValue(value)));
-              return idx >= 0 ? monthLabels[idx] : "";
-            },
-          },
-        },
-        y: { grid: { color: colGrid }, ticks: { color: colAxis, font: { family: "Geist Mono, ui-monospace, monospace", size: 11 } }, beginAtZero: chartView === "year" },
-      },
+      scales: { x: { display: false }, y: { display: false } },
     };
+
+    // Dynamic title: "Verlauf · Apr–Jun" (3M view) or "Verlauf · 2026" (year view).
+    if (els.chartTitle) {
+      const histLabel = (I18N[state.language] || {}).history || "Verlauf";
+      let range;
+      if (chartView === "3m") {
+        const startMonth = parseISO(`${state.activeYear}-01-01`);
+        startMonth.setMonth(0); // dummy, then use startDoy/endDoy to derive
+        const startDate = new Date(state.activeYear, 0, startDoy);
+        const endDate   = new Date(state.activeYear, 0, endDoy);
+        const sM = monthLabels[startDate.getMonth()];
+        const eM = monthLabels[endDate.getMonth()];
+        range = sM === eM ? sM : `${sM}–${eM}`;
+      } else {
+        range = String(state.activeYear);
+      }
+      els.chartTitle.textContent = `${histLabel} · ${range}`;
+    }
 
     if (chart) { chart.data = data; chart.options = opts; chart.update(); }
     else { chart = new Chart(ctx, { type: "line", data, options: opts }); }

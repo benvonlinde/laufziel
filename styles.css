@@ -714,3 +714,66 @@ body[data-year-mode="future"] .hero .hero__remain { text-align: left; font-size:
 /* ---------- 23. Sign-in card ---------- */
 .signed-out-hero p { margin: 0 0 var(--s-4); color: var(--text-muted); }
 .signed-out-hero[hidden] { display: none; }
+
+/* === Stateful surfaces === */
+.hero--ahead, .card--ahead {
+  background: var(--success);
+  --ink: #06180D; --ink-soft: rgba(6,24,13,.62);
+  --inner: rgba(0,0,0,.12);
+  color: var(--ink);
+}
+.hero--behind, .card--behind {
+  background: var(--error);
+  --ink: #FFF1F3; --ink-soft: rgba(255,241,243,.72);
+  --inner: rgba(0,0,0,.18);
+  color: var(--ink);
+}
+.hero--ahead .hero__num, .hero--behind .hero__num,
+.hero--ahead .hero__pct, .hero--behind .hero__pct { color: var(--ink); }
+.hero--ahead .hero__num span,  .hero--behind .hero__num span,
+.hero--ahead .hero__overline,  .hero--behind .hero__overline,
+.hero--ahead .hero__remain,    .hero--behind .hero__remain,
+.card--ahead .section-head__title, .card--behind .section-head__title { color: var(--ink-soft); }
+.hero--ahead .hero__remain strong, .hero--behind .hero__remain strong { color: var(--ink); }
+.hero--ahead .bar,  .hero--behind .bar,
+.card--ahead .bar,  .card--behind .bar { background: var(--inner); }
+.hero--ahead .bar__fill, .hero--behind .bar__fill,
+.card--ahead .bar__fill, .card--behind .bar__fill { background: var(--ink); }
+.hero--ahead .bar__target, .hero--behind .bar__target,
+.card--ahead .bar__target, .card--behind .bar__target { background: var(--ink); opacity:.55; }
+.hero--ahead .diff,  .hero--behind .diff,
+.card--ahead .diff,  .card--behind .diff { background: var(--inner); }
+.hero--ahead .diff__dot,  .card--ahead .diff__dot  { background: var(--ink); color: var(--success); }
+.hero--behind .diff__dot, .card--behind .diff__dot { background: var(--ink); color: var(--error); }
+.hero--ahead .diff__value, .hero--behind .diff__value,
+.card--ahead .diff__value, .card--behind .diff__value { color: var(--ink); }
+.hero--ahead .diff__label, .hero--behind .diff__label,
+.card--ahead .diff__label, .card--behind .diff__label { color: var(--ink-soft); }
+
+/* === Background pattern === */
+.bg-pattern {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 320px;
+  background-color: var(--bg);
+  background-image: radial-gradient(
+    rgba(135,132,255,.32) 1.4px,
+    transparent 1.8px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
+          mask-image: linear-gradient(to bottom, #000 60%, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+.app { position: relative; z-index: 1; }
+
+/* === Brand wordmark === */
+.topbar__brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: var(--accent);
+  padding: 8px 0 4px;
+}

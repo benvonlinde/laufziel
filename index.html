@@ -15,9 +15,11 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="theme-dark">
+  <div class="bg-pattern" aria-hidden="true"></div>
   <main class="app">
 
     <header class="topbar">
+      <div class="topbar__brand">Laufziel</div>
       <div class="topbar__row">
         <div class="year-switch">
           <button class="icon-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
@@ -78,7 +80,14 @@
             </span>
           </label>
         </div>
-        <button type="submit" class="btn btn--primary block" data-i18n="submitRun">Lauf eintragen</button>
+        <button type="submit" class="btn btn--primary block">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span data-i18n="submitRun">Lauf eintragen</span>
+        </button>
         <p class="field__error" id="formError" hidden></p>
       </form>
     </section>
@@ -125,7 +134,7 @@
 
     <section class="card chart-card" data-signed-in-only>
       <div class="section-head">
-        <div class="section-head__title" data-i18n="history">Verlauf</div>
+        <div class="section-head__title" id="chartTitle" data-i18n="history">Verlauf</div>
         <div class="seg" role="tablist">
           <button class="seg__item seg__item--on" id="chartTab3m"   type="button" role="tab" aria-pressed="true"  data-i18n="threeMonths">3 Monate</button>
           <button class="seg__item"               id="chartTabYear" type="button" role="tab" aria-pressed="false" data-i18n="yearTab">Jahr</button>
