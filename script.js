@@ -633,12 +633,13 @@
     kmNow: $("kmNow"), kmGoal: $("kmGoal"),
     progressBar: $("progressBar"),
     percentLabel: $("percentLabel"), remainingLabel: $("remainingLabel"),
-    diffLine: $("diffLine"), diffValue: $("diffValue"), diffText: $("diffText"),
+    diffLine: $("diffLine"), diffValue: $("diffValue"), diffText: $("diffText"), diffDot: $("diffDot"),
+    paceTarget: $("paceTarget"),
     runForm: $("runForm"), distInput: $("distInput"), dateInput: $("dateInput"),
     dateDisplayText: $("dateDisplayText"),
     formError: $("formError"),
     kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
-    weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"),
+    weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"), weekDiffDot: $("weekDiffDot"),
     runsList: $("runsList"), showAllRuns: $("showAllRuns"),
     goalActiveInput: $("goalActiveInput"), goalNextInput: $("goalNextInput"),
     goalYear: $("goalYear"), goalNextYear: $("goalNextYear"),
@@ -672,6 +673,17 @@
   let showAllRunsFlag = false;
   let chart = null;
 
+  // diff variant: "ahead" | "behind" | "onpace"
+  function setDiffVariant(line, dotEl, variant) {
+    if (!line) return;
+    line.classList.remove("diff--behind", "diff--onpace");
+    if (variant === "behind") line.classList.add("diff--behind");
+    else if (variant === "onpace") line.classList.add("diff--onpace");
+    if (dotEl) {
+      dotEl.textContent = variant === "behind" ? "↓" : variant === "onpace" ? "→" : "↑";
+    }
+  }
+
   function renderHeroCurrent(t, goal, todayDate) {
     const referenceISO = todayISO();
     const cum = cumulativeUpTo(state.activeYear, referenceISO);
@@ -693,10 +705,17 @@
       const diff = Math.round((cum - targetSoFar) * 100) / 100;
       const sign = diff > 0 ? "+" : (diff < 0 ? "-" : "±");
       els.diffValue.textContent = `${sign}${formatKm(Math.abs(diff))} km`;
-      els.diffLine.classList.toggle("is-good", diff > 0.05);
-      els.diffLine.classList.toggle("is-bad", diff < -0.05);
-      els.diffText.textContent = diff > 0.05 ? t.ahead : (diff < -0.05 ? t.behind : t.onPace);
+      const variant = diff > 0.05 ? "ahead" : diff < -0.05 ? "behind" : "onpace";
+      setDiffVariant(els.diffLine, els.diffDot, variant);
+      els.diffText.textContent = variant === "ahead" ? t.ahead : variant === "behind" ? t.behind : t.onPace;
       els.diffLine.hidden = false;
+
+      // Pace tick on the bar: where the user "should be" today, as a percentage of goal.
+      if (els.paceTarget) {
+        const pacePct = Math.max(0, Math.min(100, (targetSoFar / goal) * 100));
+        els.paceTarget.style.left = pacePct.toFixed(2) + "%";
+        els.paceTarget.hidden = false;
+      }
     } else {
       els.kmGoal.textContent = "—";
       els.goalLabel.textContent = "—";
@@ -704,7 +723,8 @@
       els.percentLabel.textContent = "—";
       els.remainingLabel.textContent = t.noGoalSet;
       els.diffLine.hidden = true;
-      els.diffLine.classList.remove("is-good", "is-bad");
+      setDiffVariant(els.diffLine, els.diffDot, "ahead");
+      if (els.paceTarget) els.paceTarget.hidden = true;
     }
   }
 
@@ -724,17 +744,17 @@
         : "";
 
       const delta = Math.round((cum - goal) * 100) / 100;
-      els.diffLine.classList.remove("is-good", "is-bad");
       if (delta >= 0) {
-        els.diffLine.classList.add("is-good");
+        setDiffVariant(els.diffLine, els.diffDot, "ahead");
         els.diffValue.textContent = `+${formatKm(delta)} km`;
         els.diffText.textContent = t.goalReached;
       } else {
-        els.diffLine.classList.add("is-bad");
+        setDiffVariant(els.diffLine, els.diffDot, "behind");
         els.diffValue.textContent = `${formatKm(delta)} km`;
         els.diffText.textContent = "";
       }
       els.diffLine.hidden = false;
+      if (els.paceTarget) els.paceTarget.hidden = true;
     } else {
       els.kmGoal.textContent = "—";
       els.goalLabel.textContent = "—";
@@ -742,7 +762,8 @@
       els.percentLabel.textContent = "—";
       els.remainingLabel.textContent = t.noGoalSet;
       els.diffLine.hidden = true;
-      els.diffLine.classList.remove("is-good", "is-bad");
+      setDiffVariant(els.diffLine, els.diffDot, "ahead");
+      if (els.paceTarget) els.paceTarget.hidden = true;
     }
   }
 
@@ -756,7 +777,8 @@
     const days = Math.max(0, Math.ceil((startDate - todayDate) / 86_400_000));
     els.remainingLabel.textContent = days === 0 ? t.startsToday : t.startsInDays(days);
     els.diffLine.hidden = true;
-    els.diffLine.classList.remove("is-good", "is-bad");
+    setDiffVariant(els.diffLine, els.diffDot, "ahead");
+    if (els.paceTarget) els.paceTarget.hidden = true;
   }
 
   function renderWeekCurrent(t, goal, todayDate) {
@@ -778,13 +800,12 @@
     if (els.weekDiffLine && els.weekDiffValue && els.weekDiffText) {
       if (goal) {
         const wDiff = Math.round((weekKm - weekTarget) * 100) / 100;
-        els.weekDiffLine.classList.remove("is-good", "is-bad");
         if (wDiff >= 0) {
-          els.weekDiffLine.classList.add("is-good");
+          setDiffVariant(els.weekDiffLine, els.weekDiffDot, "ahead");
           els.weekDiffValue.textContent = `+${formatKm(wDiff)} km`;
           els.weekDiffText.textContent = t.weekReached;
         } else {
-          els.weekDiffLine.classList.add("is-bad");
+          setDiffVariant(els.weekDiffLine, els.weekDiffDot, "behind");
           els.weekDiffValue.textContent = `${formatKm(wDiff)} km`;
           els.weekDiffText.textContent = t.behind;
         }
@@ -846,22 +867,22 @@
     els.runsList.innerHTML = "";
     for (const r of visible) {
       const li = document.createElement("li");
-      li.className = "run-row no-dot";
-      const meta = document.createElement("div");
-      meta.className = "run-meta";
-      const date = document.createElement("span");
-      date.className = "run-date";
-      date.textContent = formatDateShort(r.date);
-      const sub = document.createElement("span");
-      sub.className = "run-sub";
+      li.className = "run";
+      const dateBlock = document.createElement("div");
+      dateBlock.className = "run__date";
+      const day = document.createElement("div");
+      day.className = "run__day tnum";
+      day.textContent = formatDateShort(r.date);
+      const sub = document.createElement("div");
+      sub.className = "run__kw tnum";
       sub.textContent = `${t.kw} ${isoWeek(parseISO(r.date))}`;
-      meta.appendChild(date); meta.appendChild(sub);
-      const km = document.createElement("span");
-      km.className = "run-km";
-      km.textContent = `${formatKm(r.distanceKm)} km`;
+      dateBlock.append(day, sub);
+      const km = document.createElement("div");
+      km.className = "run__km tnum";
+      km.innerHTML = `${formatKm(r.distanceKm)}<span>km</span>`;
       const del = document.createElement("button");
-      del.className = "run-del"; del.type = "button";
-      del.setAttribute("aria-label", "löschen");
+      del.className = "run__del"; del.type = "button";
+      del.setAttribute("aria-label", t.deleteAria || "delete");
       del.textContent = "×";
       del.addEventListener("click", () => {
         if (confirm(t.confirmDelete)) {
@@ -873,7 +894,7 @@
           toast(t.runDeleted);
         }
       });
-      li.append(meta, km, del);
+      li.append(dateBlock, km, del);
       els.runsList.appendChild(li);
     }
     els.showAllRuns.hidden = all.length <= RUNS_DEFAULT_LIMIT;
@@ -904,8 +925,14 @@
 
   function setChartView(v) {
     chartView = v;
-    if (els.chartTab3m) els.chartTab3m.setAttribute("aria-pressed", String(v === "3m"));
-    if (els.chartTabYear) els.chartTabYear.setAttribute("aria-pressed", String(v === "year"));
+    if (els.chartTab3m) {
+      els.chartTab3m.setAttribute("aria-pressed", String(v === "3m"));
+      els.chartTab3m.classList.toggle("seg__item--on", v === "3m");
+    }
+    if (els.chartTabYear) {
+      els.chartTabYear.setAttribute("aria-pressed", String(v === "year"));
+      els.chartTabYear.classList.toggle("seg__item--on", v === "year");
+    }
     renderChart();
   }
 
@@ -950,15 +977,24 @@
     for (let m = 0; m < 12; m++) monthStartTicks.push(dayOfYear(new Date(state.activeYear, m, 1)));
 
     const ctx = document.getElementById("progressChart").getContext("2d");
+    // Read colors from CSS tokens so the chart inherits the active theme.
+    const css = getComputedStyle(document.documentElement);
+    const tok = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
+    const colLine   = tok("--chart-line",   "#FF5C42");
+    const colFill   = tok("--chart-fill",   "rgba(255,92,66,0.22)");
+    const colTarget = tok("--chart-target", "rgba(244,240,232,0.40)");
+    const colAxis   = tok("--chart-axis",   "rgba(244,240,232,0.35)");
+    const colGrid   = tok("--chart-grid",   "rgba(244,240,232,0.06)");
+
     const data = {
       labels,
       datasets: [
-        { label: state.language === "de" ? "Ziel-Linie" : "Target",
-          data: target, borderColor: "rgba(255,255,255,0.35)",
+        { label: state.language === "de" ? "Ziel" : "Target",
+          data: target, borderColor: colTarget,
           borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false },
-        { label: state.language === "de" ? "Tatsächlich" : "Actual",
-          data: actual, borderColor: "#3a6dff",
-          backgroundColor: "rgba(58,109,255,0.18)",
+        { label: state.language === "de" ? "Ist" : "Actual",
+          data: actual, borderColor: colLine,
+          backgroundColor: colFill,
           borderWidth: 2, pointRadius: 0, stepped: false, tension: 0.15, fill: true },
       ],
     };
@@ -971,8 +1007,15 @@
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { color: "#9090a8", boxWidth: 10, boxHeight: 10 }, position: "bottom" },
+        legend: { labels: { color: colAxis, boxWidth: 10, boxHeight: 10, font: { family: "Geist Mono, ui-monospace, monospace", size: 11 } }, position: "bottom" },
         tooltip: {
+          backgroundColor: tok("--surface-1", "#181B22"),
+          titleColor: tok("--text", "#F4F0E8"),
+          bodyColor: tok("--text", "#F4F0E8"),
+          borderColor: tok("--border-strong", "rgba(244,240,232,0.16)"),
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 12,
           callbacks: {
             title: (items) => {
               if (!items.length) return "";
@@ -986,16 +1029,17 @@
       },
       scales: {
         x: {
-          grid: { color: "rgba(255,255,255,0.05)" },
+          grid: { color: colGrid },
           ticks: {
-            color: "#9090a8", autoSkip: false,
+            color: colAxis, autoSkip: false,
+            font: { family: "Geist Mono, ui-monospace, monospace", size: 11 },
             callback: function (value) {
               const idx = monthStartTicks.indexOf(Number(this.getLabelForValue(value)));
               return idx >= 0 ? monthLabels[idx] : "";
             },
           },
         },
-        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#9090a8" }, beginAtZero: chartView === "year" },
+        y: { grid: { color: colGrid }, ticks: { color: colAxis, font: { family: "Geist Mono, ui-monospace, monospace", size: 11 } }, beginAtZero: chartView === "year" },
       },
     };
 

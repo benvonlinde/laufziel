@@ -3,165 +3,175 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#0E1014" />
   <title>Laufziel</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="theme-dark">
   <main class="app">
 
     <header class="topbar">
-      <div class="topbar-row main">
-        <div class="year-group">
-          <button class="year-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
-          <div class="year" id="yearLabel">2026</div>
-          <button class="year-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
+      <div class="topbar__row">
+        <div class="year-switch">
+          <button class="icon-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
+          <div class="year-num tnum" id="yearLabel">2026</div>
+          <button class="icon-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
         </div>
-        <div class="user-chip" id="userChip" hidden>
-          <button class="user-chip-btn" id="userChipBtn" type="button" data-i18n-attr="aria-label|account" aria-label="Konto">
-            <span class="user-avatar" id="userChipAvatar"></span>
-            <span class="user-name" id="userChipName"></span>
+        <div class="chip chip--user" id="userChip" hidden>
+          <button class="chip-user-btn" id="userChipBtn" type="button" data-i18n-attr="aria-label|account" aria-label="Konto"
+                  style="display:inline-flex; align-items:center; gap:10px; background:none; padding:0; min-height:32px;">
+            <span class="avatar" id="userChipAvatar"></span>
+            <span id="userChipName"></span>
           </button>
-          <div class="user-popover" id="userPopover" hidden role="menu">
-            <div class="user-popover-name"  id="userPopoverName"></div>
-            <div class="user-popover-email" id="userPopoverEmail"></div>
-            <button class="secondary block" id="userPopoverSignOut" type="button" data-i18n="signOut">Abmelden</button>
+          <div class="popover" id="userPopover" hidden role="menu">
+            <div class="popover__row">
+              <div class="popover__name" id="userPopoverName"></div>
+              <div class="popover__email" id="userPopoverEmail"></div>
+            </div>
+            <div class="popover__sep"></div>
+            <button class="btn btn--danger btn--primary--block" id="userPopoverSignOut" type="button" data-i18n="signOut">Abmelden</button>
           </div>
         </div>
       </div>
-      <div class="topbar-row controls">
-        <button class="goal-chip" id="goalChip" type="button">
+      <div class="topbar__row">
+        <button class="chip chip--goal" id="goalChip" type="button">
           <span id="goalLabel">1000</span> km
         </button>
       </div>
     </header>
 
-    <section class="card hero signed-out-hero" id="signedOutHero" hidden>
-      <h2 class="card-title" data-i18n="welcomeTitle">Willkommen</h2>
+    <section class="card signed-out-hero" id="signedOutHero" hidden>
+      <div class="hero__overline" data-i18n="welcomeTitle">Willkommen</div>
       <p data-i18n="welcomeBody">Melde dich mit Google an, um deine Läufe zu sehen und einzutragen.</p>
-      <button class="primary block" id="signInBtn" type="button" data-i18n="signInWithGoogle">Mit Google anmelden</button>
-      <p class="form-error" id="signInError" hidden></p>
+      <button class="btn btn--primary block" id="signInBtn" type="button" data-i18n="signInWithGoogle">Mit Google anmelden</button>
+      <p class="field__error" id="signInError" hidden></p>
     </section>
 
     <section class="card add-form" data-signed-in-only>
-      <h2 class="card-title" data-i18n="newRun">Neuer Lauf</h2>
+      <div class="section-head">
+        <div class="section-head__title" data-i18n="newRun">Neuer Lauf</div>
+      </div>
       <form id="runForm" novalidate>
         <div class="row two">
           <label class="field">
-            <span data-i18n="distanceLabel">Distanz (km)</span>
-            <input id="distInput" type="text" inputmode="decimal" autocomplete="off"
+            <span class="field__label" data-i18n="distanceLabel">Distanz (km)</span>
+            <input class="input input--num tnum" id="distInput" type="text" inputmode="decimal" autocomplete="off"
                    data-i18n-attr="placeholder|distancePlaceholder"
                    placeholder="z. B. 8,4" required />
           </label>
           <label class="field">
-            <span data-i18n="dateLabel">Datum</span>
-            <span class="date-field">
-              <span class="date-display" aria-hidden="true">
-                <span id="dateDisplayText">—</span>
-                <span class="date-chevron">▾</span>
-              </span>
+            <span class="field__label" data-i18n="dateLabel">Datum</span>
+            <span class="date-chip">
+              <span class="date-chip__label tnum" id="dateDisplayText">—</span>
+              <svg class="date-chip__icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
               <input id="dateInput" type="date" required />
             </span>
           </label>
         </div>
-        <button type="submit" class="primary" data-i18n="submitRun">Lauf eintragen</button>
-        <p class="form-error" id="formError" hidden></p>
+        <button type="submit" class="btn btn--primary block" data-i18n="submitRun">Lauf eintragen</button>
+        <p class="field__error" id="formError" hidden></p>
       </form>
     </section>
 
     <section class="card week" data-signed-in-only>
-      <h2 class="card-title">
-        <span data-i18n="thisWeek">Diese Woche</span>
-        <span class="kw" id="kwLabel">KW –</span>
-      </h2>
-      <div class="week-numbers">
-        <span class="km-week" id="weekKm">0,0</span>
-        <span class="km-week-of">/ <span id="weekTarget">18,87</span> km</span>
+      <div class="section-head">
+        <div class="section-head__title">
+          <span data-i18n="thisWeek">Diese Woche</span>
+          <span id="kwLabel" style="margin-left:6px;">KW –</span>
+        </div>
       </div>
-      <div class="progress small" aria-hidden="true">
-        <div class="progress-bar" id="weekBar"></div>
+      <div class="hero__num tnum" style="font-size:44px;">
+        <span id="weekKm">0,0</span><span class="hero__num-of">/ <span id="weekTarget">18,87</span> km</span>
       </div>
-      <div class="diff" id="weekDiffLine" hidden>
-        <span class="diff-value" id="weekDiffValue">±0,00 km</span>
-        <span class="diff-text"  id="weekDiffText">auf Kurs</span>
+      <div class="bar bar--sm" style="margin-top:14px;">
+        <div class="bar__fill" id="weekBar" style="width:0%"></div>
+      </div>
+      <div class="diff" id="weekDiffLine" style="margin-top:14px;" hidden>
+        <span class="diff__dot" id="weekDiffDot">↑</span>
+        <span class="diff__value tnum" id="weekDiffValue">±0,00 km</span>
+        <span class="diff__label" id="weekDiffText">auf Kurs</span>
       </div>
     </section>
 
-    <section class="card hero" data-signed-in-only>
-      <h2 class="card-title" data-i18n="yearGoal">Jahresziel</h2>
-      <div class="hero-numbers">
-        <div class="km-now" id="kmNow">0</div>
-        <div class="km-of">/ <span id="kmGoal">1000</span> km</div>
+    <section class="hero" data-signed-in-only>
+      <div class="hero__overline" data-i18n="yearGoal">Jahresziel</div>
+      <div class="hero__num tnum">
+        <span id="kmNow">0</span><span class="hero__num-of">/ <span id="kmGoal">1000</span> km</span>
       </div>
-      <div class="progress" aria-hidden="true">
-        <div class="progress-bar" id="progressBar"></div>
+      <div class="bar">
+        <div class="bar__fill" id="progressBar" style="width:0%"></div>
+        <div class="bar__target" id="paceTarget" hidden></div>
       </div>
-      <div class="hero-meta">
-        <span id="percentLabel">0,0 %</span>
-        <span class="dot">·</span>
-        <span id="remainingLabel">noch 1000 km</span>
+      <div class="hero__row">
+        <div class="hero__pct tnum" id="percentLabel">0,0 %</div>
+        <div class="hero__remain"><strong id="remainingLabel">noch 1000 km</strong></div>
       </div>
       <div class="diff" id="diffLine">
-        <span class="diff-value" id="diffValue">±0,00 km</span>
-        <span class="diff-text" id="diffText">auf Kurs</span>
+        <span class="diff__dot" id="diffDot">↑</span>
+        <span class="diff__value tnum" id="diffValue">±0,00 km</span>
+        <span class="diff__label" id="diffText">auf Kurs</span>
       </div>
     </section>
 
     <section class="card chart-card" data-signed-in-only>
-      <h2 class="card-title">
-        <span data-i18n="history">Verlauf</span>
-        <span class="chart-tabs" role="tablist">
-          <button class="chart-tab" id="chartTab3m"   type="button" role="tab" aria-pressed="true"  data-i18n="threeMonths">3 Monate</button>
-          <button class="chart-tab" id="chartTabYear" type="button" role="tab" aria-pressed="false" data-i18n="yearTab">Jahr</button>
-        </span>
-      </h2>
+      <div class="section-head">
+        <div class="section-head__title" data-i18n="history">Verlauf</div>
+        <div class="seg" role="tablist">
+          <button class="seg__item seg__item--on" id="chartTab3m"   type="button" role="tab" aria-pressed="true"  data-i18n="threeMonths">3 Monate</button>
+          <button class="seg__item"               id="chartTabYear" type="button" role="tab" aria-pressed="false" data-i18n="yearTab">Jahr</button>
+        </div>
+      </div>
       <div class="chart-wrap">
         <canvas id="progressChart"></canvas>
       </div>
     </section>
 
-    <section class="card runs" data-signed-in-only>
-      <h2 class="card-title">
-        <span data-i18n="recentRuns">Letzte Läufe</span>
-        <button class="link-btn link-btn-corner" id="showAllRuns" type="button" hidden>Alle anzeigen</button>
-      </h2>
-      <ul class="runs-list" id="runsList"></ul>
+    <section class="card runs-card" data-signed-in-only>
+      <div class="section-head">
+        <div class="section-head__title" data-i18n="recentRuns">Letzte Läufe</div>
+        <button class="btn--link" id="showAllRuns" type="button" hidden>Alle anzeigen</button>
+      </div>
+      <ul class="runs" id="runsList"></ul>
     </section>
 
     <details class="card settings" data-signed-in-only>
       <summary data-i18n="settingsTitle">Einstellungen</summary>
       <div class="settings-body">
         <label class="field">
-          <span><span data-i18n="goalForYear">Ziel</span> <span class="muted" id="goalYear">2026</span> (km)</span>
-          <input type="number" id="goalActiveInput" min="1" step="1" />
+          <span class="field__label"><span data-i18n="goalForYear">Ziel</span> <span id="goalYear">2026</span> (km)</span>
+          <input class="input tnum" type="number" id="goalActiveInput" min="1" step="1" />
         </label>
         <label class="field">
-          <span><span data-i18n="goalForNextYear">Ziel nächstes Jahr</span> (<span id="goalNextYear">2027</span>) (km)</span>
-          <input type="number" id="goalNextInput" min="1" step="1" data-i18n-attr="placeholder|notSetYet" placeholder="noch nicht gesetzt" />
+          <span class="field__label"><span data-i18n="goalForNextYear">Ziel nächstes Jahr</span> (<span id="goalNextYear">2027</span>) (km)</span>
+          <input class="input tnum" type="number" id="goalNextInput" min="1" step="1" data-i18n-attr="placeholder|notSetYet" placeholder="noch nicht gesetzt" />
         </label>
         <label class="field">
-          <span data-i18n="languageLabel">Sprache</span>
-          <select id="langSelect">
+          <span class="field__label" data-i18n="languageLabel">Sprache</span>
+          <select class="select" id="langSelect">
             <option value="de" data-i18n="langDe">Deutsch</option>
             <option value="en" data-i18n="langEn">English</option>
           </select>
         </label>
         <div class="settings-actions">
-          <button class="secondary" id="exportBtn" type="button" data-i18n="exportJson">JSON exportieren</button>
-          <button class="secondary" id="signOutBtn" type="button" data-i18n="signOut">Abmelden</button>
+          <button class="btn btn--secondary" id="exportBtn" type="button" data-i18n="exportJson">JSON exportieren</button>
+          <button class="btn btn--secondary" id="signOutBtn" type="button" data-i18n="signOut">Abmelden</button>
         </div>
       </div>
     </details>
 
-    <footer class="foot muted">
-      <span id="storageNote" class="status-line">
-        <span class="status-dot" id="statusDot" data-state="offline"></span>
-        <span id="statusText">offline</span>
-      </span>
+    <footer class="status">
+      <span class="status__dot" id="statusDot" data-state="offline"></span>
+      <span id="statusText">offline</span>
     </footer>
 
   </main>
