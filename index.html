@@ -15,17 +15,18 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="theme-dark">
-  <div class="bg-pattern" aria-hidden="true"></div>
   <main class="app">
 
     <header class="topbar">
-      <div class="topbar__brand">Laufziel</div>
-      <div class="topbar__row">
-        <div class="year-switch">
-          <button class="icon-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
-          <div class="year-num tnum" id="yearLabel">2026</div>
-          <button class="icon-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
-        </div>
+      <div class="topbar__title">
+        <button class="icon-btn" id="yearPrev" type="button" data-i18n-attr="aria-label|yearPrev" aria-label="Vorheriges Jahr">‹</button>
+        <h1 class="topbar__brand">Laufziel <span id="yearLabel" class="tnum">26</span></h1>
+        <button class="icon-btn" id="yearNext" type="button" data-i18n-attr="aria-label|yearNext" aria-label="Nächstes Jahr">›</button>
+      </div>
+      <div class="topbar__row topbar__row--chips">
+        <button class="chip chip--goal" id="goalChip" type="button">
+          <span id="goalLabel">1000</span> km
+        </button>
         <div class="chip chip--user" id="userChip" hidden>
           <button class="chip-user-btn" id="userChipBtn" type="button" data-i18n-attr="aria-label|account" aria-label="Konto"
                   style="display:inline-flex; align-items:center; gap:10px; background:none; padding:0; min-height:32px;">
@@ -41,11 +42,6 @@
             <button class="btn btn--danger btn--primary--block" id="userPopoverSignOut" type="button" data-i18n="signOut">Abmelden</button>
           </div>
         </div>
-      </div>
-      <div class="topbar__row">
-        <button class="chip chip--goal" id="goalChip" type="button">
-          <span id="goalLabel">1000</span> km
-        </button>
       </div>
     </header>
 
@@ -154,16 +150,14 @@
     </section>
 
     <details class="card settings" data-signed-in-only>
-      <summary data-i18n="settingsTitle">Einstellungen</summary>
+      <summary>
+        <span data-i18n="settingsTitle">Einstellungen</span>
+        <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </summary>
       <div class="settings-body">
-        <label class="field">
-          <span class="field__label"><span data-i18n="goalForYear">Ziel</span> <span id="goalYear">2026</span> (km)</span>
-          <input class="input tnum" type="number" id="goalActiveInput" min="1" step="1" />
-        </label>
-        <label class="field">
-          <span class="field__label"><span data-i18n="goalForNextYear">Ziel nächstes Jahr</span> (<span id="goalNextYear">2027</span>) (km)</span>
-          <input class="input tnum" type="number" id="goalNextInput" min="1" step="1" data-i18n-attr="placeholder|notSetYet" placeholder="noch nicht gesetzt" />
-        </label>
         <label class="field">
           <span class="field__label" data-i18n="languageLabel">Sprache</span>
           <select class="select" id="langSelect">
@@ -173,7 +167,6 @@
         </label>
         <div class="settings-actions">
           <button class="btn btn--secondary" id="exportBtn" type="button" data-i18n="exportJson">JSON exportieren</button>
-          <button class="btn btn--secondary" id="signOutBtn" type="button" data-i18n="signOut">Abmelden</button>
         </div>
       </div>
     </details>

@@ -211,7 +211,7 @@
     return parseISO(iso).toLocaleDateString(localeTag(), { day: "2-digit", month: "2-digit", year: "numeric" });
   }
   function formatDateLong(iso) {
-    return parseISO(iso).toLocaleDateString(localeTag(), { day: "numeric", month: "long", year: "numeric" });
+    return parseISO(iso).toLocaleDateString(localeTag(), { day: "numeric", month: "short", year: "2-digit" });
   }
   function updateDateDisplay() {
     if (!els.dateDisplayText || !els.dateInput) return;
@@ -644,10 +644,8 @@
     kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
     weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"), weekDiffDot: $("weekDiffDot"),
     runsList: $("runsList"), showAllRuns: $("showAllRuns"),
-    goalActiveInput: $("goalActiveInput"), goalNextInput: $("goalNextInput"),
-    goalYear: $("goalYear"), goalNextYear: $("goalNextYear"),
     langSelect: $("langSelect"),
-    exportBtn: $("exportBtn"), signOutBtn: $("signOutBtn"),
+    exportBtn: $("exportBtn"),
     statusDot: $("statusDot"), statusText: $("statusText"),
     toast: $("toast"),
     // user chip + popover
@@ -720,11 +718,9 @@
         els.paceTarget.hidden = false;
       }
 
-      // Stateful surface: tint the whole hero card when meaningfully off-pace.
-      const tolerance = goal * 0.01;
+      // Stateful surface: green only when the year total has actually surpassed the goal.
       if (els.heroCard) {
-        els.heroCard.classList.toggle("hero--ahead",  diff >  tolerance);
-        els.heroCard.classList.toggle("hero--behind", diff < -tolerance);
+        els.heroCard.classList.toggle("hero--ahead", cum > goal);
       }
     } else {
       els.kmGoal.textContent = "—";
@@ -735,7 +731,7 @@
       els.diffLine.hidden = true;
       setDiffVariant(els.diffLine, els.diffDot, "ahead");
       if (els.paceTarget) els.paceTarget.hidden = true;
-      if (els.heroCard) els.heroCard.classList.remove("hero--ahead", "hero--behind");
+      if (els.heroCard) els.heroCard.classList.remove("hero--ahead");
     }
   }
 
@@ -767,10 +763,9 @@
       els.diffLine.hidden = false;
       if (els.paceTarget) els.paceTarget.hidden = true;
 
-      // Stateful surface for closed years: green if hit, red if missed.
+      // Stateful surface for closed years: green only if the goal was hit.
       if (els.heroCard) {
-        els.heroCard.classList.toggle("hero--ahead",  cum >= goal);
-        els.heroCard.classList.toggle("hero--behind", cum <  goal);
+        els.heroCard.classList.toggle("hero--ahead", cum >= goal);
       }
     } else {
       els.kmGoal.textContent = "—";
@@ -781,7 +776,7 @@
       els.diffLine.hidden = true;
       setDiffVariant(els.diffLine, els.diffDot, "ahead");
       if (els.paceTarget) els.paceTarget.hidden = true;
-      if (els.heroCard) els.heroCard.classList.remove("hero--ahead", "hero--behind");
+      if (els.heroCard) els.heroCard.classList.remove("hero--ahead");
     }
   }
 
@@ -797,7 +792,7 @@
     els.diffLine.hidden = true;
     setDiffVariant(els.diffLine, els.diffDot, "ahead");
     if (els.paceTarget) els.paceTarget.hidden = true;
-    if (els.heroCard) els.heroCard.classList.remove("hero--ahead", "hero--behind");
+    if (els.heroCard) els.heroCard.classList.remove("hero--ahead");
   }
 
   function renderWeekCurrent(t, goal, todayDate) {
@@ -830,14 +825,13 @@
         }
         els.weekDiffLine.hidden = false;
 
-        // Stateful surface for the weekly card with ±2 km tolerance.
+        // Stateful surface: green only when the week total has actually surpassed the weekly target.
         if (els.weekCard) {
-          els.weekCard.classList.toggle("card--ahead",  wDiff >  2);
-          els.weekCard.classList.toggle("card--behind", wDiff < -2);
+          els.weekCard.classList.toggle("card--ahead", weekKm > weekTarget);
         }
       } else {
         els.weekDiffLine.hidden = true;
-        if (els.weekCard) els.weekCard.classList.remove("card--ahead", "card--behind");
+        if (els.weekCard) els.weekCard.classList.remove("card--ahead");
       }
     }
   }
@@ -846,9 +840,7 @@
     const t = I18N[state.language];
     document.documentElement.lang = state.language;
 
-    els.yearLabel.textContent = state.activeYear;
-    els.goalYear.textContent = state.activeYear;
-    els.goalNextYear.textContent = state.activeYear + 1;
+    els.yearLabel.textContent = String(state.activeYear).slice(-2);
 
     const goal = activeGoal();
     const today = todayISO();
@@ -864,13 +856,11 @@
     else renderHeroFuture(t, goal, todayDate);
 
     if (yearMode === "current") renderWeekCurrent(t, goal, todayDate);
-    else if (els.weekCard) els.weekCard.classList.remove("card--ahead", "card--behind");
+    else if (els.weekCard) els.weekCard.classList.remove("card--ahead");
 
     if (!els.dateInput.value) els.dateInput.value = today;
     updateDateDisplay();
 
-    els.goalActiveInput.value = state.goals[String(state.activeYear)] || "";
-    els.goalNextInput.value = state.goals[String(state.activeYear + 1)] || "";
     if (els.langSelect.value !== state.language) els.langSelect.value = state.language;
 
     applyStaticI18n();
@@ -1200,16 +1190,6 @@
       toast(t.runAdded);
     });
 
-    els.goalActiveInput.addEventListener("change", () => {
-      setGoal(state.activeYear, els.goalActiveInput.value);
-      render(); sync.pushQueue();
-      toast(I18N[state.language].goalUpdated);
-    });
-    els.goalNextInput.addEventListener("change", () => {
-      setGoal(state.activeYear + 1, els.goalNextInput.value);
-      render(); sync.pushQueue();
-      toast(I18N[state.language].goalUpdated);
-    });
     els.langSelect.addEventListener("change", () => { setLanguage(els.langSelect.value); render(); });
 
     els.exportBtn.addEventListener("click", exportJSON);
@@ -1239,7 +1219,6 @@
       hideUserPopover();
       toast(I18N[state.language].signedOut);
     }
-    if (els.signOutBtn) els.signOutBtn.addEventListener("click", doSignOut);
     if (els.userPopoverSignOut) els.userPopoverSignOut.addEventListener("click", doSignOut);
 
     if (els.userChipBtn) {
