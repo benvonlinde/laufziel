@@ -643,6 +643,7 @@
     formError: $("formError"),
     kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
     weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"), weekDiffDot: $("weekDiffDot"),
+    weekConfetti: $("weekConfetti"),
     runsList: $("runsList"), showAllRuns: $("showAllRuns"),
     langSelect: $("langSelect"),
     exportBtn: $("exportBtn"),
@@ -673,6 +674,18 @@
   // ====== rendering ====================================================
   let showAllRunsFlag = false;
   let chart = null;
+
+  // Confetti fires when the current week's km goes up (a new run is logged).
+  // First render after boot doesn't fire; year changes reset the baseline.
+  let prevWeekKm = null;
+  let prevWeekYear = null;
+  function fireWeekConfetti() {
+    const el = els.weekConfetti;
+    if (!el) return;
+    el.classList.remove("is-firing");
+    void el.offsetWidth; // restart the animation
+    el.classList.add("is-firing");
+  }
 
   // diff variant: "ahead" | "behind" | "onpace"
   function setDiffVariant(line, dotEl, variant) {
@@ -807,6 +820,15 @@
     const weekKm = weekRuns.reduce((s, r) => s + r.distanceKm, 0);
     const weekTarget = goal ? goal / isoWeeksInYear(state.activeYear) : 0;
     els.weekKm.textContent = formatKm1(weekKm);
+
+    // Celebrate the week distance going up. Skip the very first render
+    // and any render that follows a year switch (no spurious confetti).
+    const yearKey = `${state.activeYear}-${refKw}-${refKwYear}`;
+    if (prevWeekYear === yearKey && weekKm > prevWeekKm + 0.001) {
+      fireWeekConfetti();
+    }
+    prevWeekKm = weekKm;
+    prevWeekYear = yearKey;
     els.weekTarget.textContent = goal ? formatKm(weekTarget) : "—";
     els.weekBar.style.width = goal
       ? Math.max(0, Math.min(100, (weekKm / weekTarget) * 100)).toFixed(2) + "%"

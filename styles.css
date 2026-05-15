@@ -194,7 +194,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--s-3);
 }
-.topbar__row--chips { justify-content: space-between; }
+.topbar__row--chips { justify-content: center; gap: 20px; }
 .icon-btn {
   width: 44px; height: 44px;
   border-radius: var(--r-pill);
@@ -408,7 +408,7 @@ body {
 }
 .date-chip__label {
   font-variant-numeric: tabular-nums;
-  font-size: var(--t-meta);
+  font-size: var(--t-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -574,13 +574,14 @@ select.input,
   bottom: calc(env(safe-area-inset-bottom) + var(--s-5));
   transform: translateX(-50%);
   z-index: 60;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--info);
+  color: var(--text-inv);
   border-radius: var(--r-pill);
   padding: 12px 18px;
   font-weight: 600;
   font-size: var(--t-meta);
-  box-shadow: var(--shadow-pop);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.30),
+              0 24px 48px -8px rgba(0,0,0,0.55);
   display: inline-flex; align-items: center; gap: var(--s-2);
 }
 .toast[hidden] { display: none; }
@@ -702,6 +703,44 @@ body[data-year-mode="future"] .hero .hero__remain { text-align: left; font-size:
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--s-3);
+}
+
+/* ---------- 22b. Confetti burst (week km increase) ---------- */
+.week-num-wrap { position: relative; display: inline-block; }
+.confetti {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 0; height: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.confetti i {
+  position: absolute; top: 0; left: 0;
+  width: 7px; height: 7px;
+  border-radius: 1.5px;
+  opacity: 0;
+  display: block;
+}
+.confetti.is-firing i { animation: confetti 900ms var(--ease) forwards; }
+@keyframes confetti {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(0.4); opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: translate(var(--cx, 40px), var(--cy, -40px)) rotate(540deg) scale(1); opacity: 0; }
+}
+.confetti i:nth-child(1)  { --cx:  -64px; --cy:  -18px; background: var(--accent); }
+.confetti i:nth-child(2)  { --cx:  -48px; --cy:  -58px; background: var(--success); }
+.confetti i:nth-child(3)  { --cx:   -6px; --cy:  -72px; background: var(--info); }
+.confetti i:nth-child(4)  { --cx:   36px; --cy:  -66px; background: var(--warning); }
+.confetti i:nth-child(5)  { --cx:   62px; --cy:  -26px; background: var(--accent); }
+.confetti i:nth-child(6)  { --cx:   66px; --cy:   24px; background: var(--success); }
+.confetti i:nth-child(7)  { --cx:   42px; --cy:   56px; background: var(--info); }
+.confetti i:nth-child(8)  { --cx:    0px; --cy:   68px; background: var(--warning); }
+.confetti i:nth-child(9)  { --cx:  -42px; --cy:   54px; background: var(--accent); }
+.confetti i:nth-child(10) { --cx:  -66px; --cy:   24px; background: var(--success); }
+.confetti i:nth-child(11) { --cx:  -28px; --cy:  -44px; background: var(--info); }
+.confetti i:nth-child(12) { --cx:   28px; --cy:  -44px; background: var(--warning); }
+@media (prefers-reduced-motion: reduce) {
+  .confetti.is-firing i { animation: none; }
 }
 
 /* ---------- 23. Sign-in card ---------- */

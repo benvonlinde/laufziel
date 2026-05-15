@@ -60,7 +60,7 @@
         <div class="row two">
           <label class="field">
             <span class="field__label" data-i18n="distanceLabel">Distanz (km)</span>
-            <input class="input input--num tnum" id="distInput" type="text" inputmode="decimal" autocomplete="off"
+            <input class="input tnum" id="distInput" type="text" inputmode="decimal" autocomplete="off"
                    data-i18n-attr="placeholder|distancePlaceholder"
                    placeholder="z. B. 8,4" required />
           </label>
@@ -96,7 +96,13 @@
         </div>
       </div>
       <div class="hero__num tnum" style="font-size:44px;">
-        <span id="weekKm">0,0</span><span class="hero__num-of">/ <span id="weekTarget">18,87</span> km</span>
+        <span class="week-num-wrap">
+          <span id="weekKm">0,0</span>
+          <span class="confetti" id="weekConfetti" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+          </span>
+        </span><span class="hero__num-of">/ <span id="weekTarget">18,87</span> km</span>
       </div>
       <div class="bar bar--sm" style="margin-top:14px;">
         <div class="bar__fill" id="weekBar" style="width:0%"></div>
