@@ -716,8 +716,10 @@ body[data-year-mode="future"] .hero .hero__remain { text-align: left; font-size:
   color: var(--ink);
 }
 .hero--ahead .hero__num,
+.card--ahead .hero__num,
 .hero--ahead .hero__pct                                 { color: var(--ink); }
 .hero--ahead .hero__num span,
+.card--ahead .hero__num span,
 .hero--ahead .hero__overline,
 .hero--ahead .hero__remain,
 .card--ahead .section-head__title                       { color: var(--ink-soft); }

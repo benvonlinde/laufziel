@@ -718,9 +718,10 @@
         els.paceTarget.hidden = false;
       }
 
-      // Stateful surface: green only when the year total has actually surpassed the goal.
+      // Stateful surface: green when the year total is ahead of the expected pace
+      // (mirror of the week card's weekKm > weekTarget rule).
       if (els.heroCard) {
-        els.heroCard.classList.toggle("hero--ahead", cum > goal);
+        els.heroCard.classList.toggle("hero--ahead", cum > targetSoFar);
       }
     } else {
       els.kmGoal.textContent = "—";
