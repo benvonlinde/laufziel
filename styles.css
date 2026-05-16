@@ -358,6 +358,10 @@ body {
 .diff--onpace                  { background: var(--info-soft); }
 .diff--onpace .diff__dot       { color: var(--info); }
 .diff--onpace .diff__value     { color: var(--info); }
+.diff--neutral                 { background: var(--surface-2); }
+.diff--neutral .diff__dot      { background: var(--surface-1); color: var(--text-muted); }
+.diff--neutral .diff__value    { color: var(--text); }
+.diff--neutral .diff__label    { color: var(--text-muted); }
 
 /* ---------- 11. Inputs ---------- */
 .field {
@@ -704,6 +708,85 @@ body[data-year-mode="future"] .hero .hero__remain { text-align: left; font-size:
   grid-template-columns: 1fr 1fr;
   gap: var(--s-3);
 }
+
+/* ---------- 22a. Shoe card ---------- */
+.shoe-card { display: flex; flex-direction: column; gap: var(--s-3); }
+.shoe-view  { display: flex; flex-direction: column; gap: var(--s-3); }
+.shoe-edit  { display: flex; flex-direction: column; gap: var(--s-4); }
+.shoe-view[hidden], .shoe-edit[hidden], .shoe-empty[hidden] { display: none; }
+.shoe-empty  { margin: 0; padding: var(--s-3) 0; font-size: var(--t-meta); }
+
+/* Full-width selector chip — date-chip surface stretched to card width. */
+.shoe-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 52px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  padding: 0 var(--s-4);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  color: var(--text);
+  cursor: pointer;
+}
+.shoe-select:focus-within {
+  outline: 0;
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+.shoe-select__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+.shoe-select__native {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0; padding: 0; margin: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+}
+.shoe-select__native:focus { outline: none; }
+
+/* Shoe list rows in edit mode reuse the .run grid */
+.shoe-card .runs .run__day { white-space: normal; line-height: 1.2; }
+
+/* ---------- 22a-bis. Amber 'over-recommended' variant ---------- */
+.card--worn {
+  background: var(--warning);
+  --ink: #1F1607; --ink-soft: rgba(31,22,7,.62);
+  --inner: rgba(0,0,0,.15);
+  color: var(--ink);
+}
+.card--worn .section-head__title,
+.card--worn .hero__num,
+.card--worn .hero__num span               { color: var(--ink); }
+.card--worn .section-head__title          { color: var(--ink-soft); }
+.card--worn .hero__num span               { color: var(--ink-soft); }
+.card--worn .bar                          { background: var(--inner); }
+.card--worn .bar__fill                    { background: var(--ink); }
+.card--worn .diff                         { background: var(--inner); }
+.card--worn .diff__dot                    { background: var(--ink); color: var(--warning); }
+.card--worn .diff__value                  { color: var(--ink); }
+.card--worn .diff__label                  { color: var(--ink-soft); }
+.card--worn .shoe-select                  { background: var(--inner); color: var(--ink); border-color: transparent; }
+.card--worn .shoe-select__label           { color: var(--ink); }
+.card--worn .date-chip__icon              { color: var(--ink-soft); }
+.card--worn .btn--link                    { background: var(--inner); color: var(--ink); }
+
+/* Year-scope: shoe card only appears in the current year */
+body[data-year-mode="past"]   .shoe-card,
+body[data-year-mode="future"] .shoe-card { display: none; }
 
 /* ---------- 22b. Confetti burst (week km increase) ---------- */
 .week-num-wrap { position: relative; display: inline-block; }

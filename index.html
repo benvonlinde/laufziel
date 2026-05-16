@@ -76,6 +76,17 @@
             </span>
           </label>
         </div>
+        <label class="field" id="formShoeField" hidden>
+          <span class="field__label" data-i18n="shoesLabel">Schuhe</span>
+          <span class="shoe-select">
+            <span class="shoe-select__label" id="formShoeLabel">—</span>
+            <svg class="date-chip__icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <select class="shoe-select__native" id="formShoeSelect" aria-label="Schuhe"></select>
+          </span>
+        </label>
         <button type="submit" class="btn btn--primary block">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -153,6 +164,44 @@
         <button class="btn--link" id="showAllRuns" type="button" hidden>Alle anzeigen</button>
       </div>
       <ul class="runs" id="runsList"></ul>
+    </section>
+
+    <section class="card shoe-card" id="shoeCard" data-signed-in-only>
+      <div class="section-head">
+        <div class="section-head__title" data-i18n="shoesTitle">Laufschuhe</div>
+        <button class="btn--link" id="shoeEditToggle" type="button" data-i18n="editShoes">Bearbeiten</button>
+      </div>
+
+      <div class="shoe-view" id="shoeView">
+        <span class="shoe-select">
+          <span class="shoe-select__label" id="shoeSelectorLabel">—</span>
+          <svg class="date-chip__icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          <select class="shoe-select__native" id="shoeSelector" aria-label="Schuhe wählen"></select>
+        </span>
+        <div class="hero__num tnum" style="font-size:44px;">
+          <span id="shoeKm">0,0</span><span class="hero__num-of">/ 1000 km</span>
+        </div>
+        <div class="bar">
+          <div class="bar__fill" id="shoeBar" style="width:0%"></div>
+        </div>
+        <div class="diff" id="shoeDiff" hidden>
+          <span class="diff__dot" id="shoeDiffDot">↓</span>
+          <span class="diff__value tnum" id="shoeDiffValue">—</span>
+          <span class="diff__label" id="shoeDiffLabel"></span>
+        </div>
+      </div>
+
+      <div class="shoe-edit" id="shoeEdit" hidden>
+        <ul class="runs" id="shoesList"></ul>
+        <button class="btn btn--secondary block" id="shoeAdd" type="button" data-i18n="addShoes">+ Schuhe hinzufügen</button>
+      </div>
+
+      <p class="shoe-empty muted" id="shoeEmpty" hidden data-i18n="noShoesYet">
+        Noch keine Schuhe hinzugefügt. Tippe auf „Bearbeiten“, um deine erste Paar anzulegen.
+      </p>
     </section>
 
     <details class="card settings" data-signed-in-only>

@@ -76,6 +76,20 @@
       langEn: "English",
       exportJson: "JSON exportieren",
       deleteAria: "löschen",
+      // shoes
+      shoesTitle: "Laufschuhe",
+      shoesLabel: "Schuhe",
+      editShoes: "Bearbeiten",
+      doneEditingShoes: "Fertig",
+      addShoes: "+ Schuhe hinzufügen",
+      noShoesYet: "Noch keine Schuhe hinzugefügt. Tippe auf „Bearbeiten“, um deine erste Paar anzulegen.",
+      shoePromptName: "Name der neuen Laufschuhe:",
+      confirmDeleteShoe: "Diese Schuhe löschen?",
+      untilRecommended: "bis Empfehlung",
+      overRecommended: "über Empfehlung",
+      shoeAddedSinceFmt: (km, date) => `${km} km · seit ${date}`,
+      shoeAdded: "Schuhe hinzugefügt",
+      shoeDeleted: "Schuhe gelöscht",
     },
     en: {
       ahead: "ahead of pace",
@@ -135,6 +149,20 @@
       langEn: "English",
       exportJson: "Export JSON",
       deleteAria: "delete",
+      // shoes
+      shoesTitle: "Running shoes",
+      shoesLabel: "Shoes",
+      editShoes: "Edit",
+      doneEditingShoes: "Done",
+      addShoes: "+ Add shoes",
+      noShoesYet: "No shoes yet. Tap “Edit” to add your first pair.",
+      shoePromptName: "Name of the new shoes:",
+      confirmDeleteShoe: "Delete these shoes?",
+      untilRecommended: "until recommended limit",
+      overRecommended: "over recommended limit",
+      shoeAddedSinceFmt: (km, date) => `${km} km · since ${date}`,
+      shoeAdded: "Shoes added",
+      shoeDeleted: "Shoes deleted",
     },
   };
 
@@ -235,8 +263,12 @@
   });
 
   const state = {
-    runs: [],          // [{ id, date, distanceKm, createdAt, source }]
-    goals: {},         // { "2026": 1000 }
+    runs: [],            // [{ id, date, distanceKm, createdAt, source, shoeId }]
+    goals: {},           // { "2026": 1000 }
+    shoes: [],           // [{ id, name, addedDate, baselineKm }]
+    selectedShoeId: null,// currently focused shoe in the view-mode card
+    lastShoeId: null,    // default shoe for the form
+    editingShoes: false, // shoe-card mode toggle
     activeYear: defaultSettings().activeYear,
     language: defaultSettings().language,
     fetchedAt: null,
@@ -244,12 +276,15 @@
     syncing: false,
   };
 
+  const SHOE_GOAL_KM = 1000;
+
   function loadCacheAndSettings() {
     try {
       const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
       if (c) {
         state.runs = Array.isArray(c.runs) ? c.runs : [];
         state.goals = c.goals && typeof c.goals === "object" ? c.goals : {};
+        state.shoes = Array.isArray(c.shoes) ? c.shoes : [];
         state.fetchedAt = c.fetchedAt || null;
       }
     } catch (e) { console.warn("cache parse failed", e); }
@@ -258,6 +293,7 @@
       if (s) {
         if (typeof s.activeYear === "number") state.activeYear = s.activeYear;
         if (s.language === "de" || s.language === "en") state.language = s.language;
+        if (typeof s.lastShoeId === "string") state.lastShoeId = s.lastShoeId;
       }
     } catch (e) { console.warn("settings parse failed", e); }
   }
@@ -266,6 +302,7 @@
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       runs: state.runs,
       goals: state.goals,
+      shoes: state.shoes,
       fetchedAt: state.fetchedAt,
     }));
   }
@@ -273,7 +310,14 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       activeYear: state.activeYear,
       language: state.language,
+      lastShoeId: state.lastShoeId,
     }));
+  }
+
+  function shoeTotalKm(shoeId) {
+    const base = (state.shoes.find((s) => s.id === shoeId)?.baselineKm) || 0;
+    const sum = state.runs.filter((r) => r.shoeId === shoeId).reduce((s, r) => s + r.distanceKm, 0);
+    return Math.round((base + sum) * 100) / 100;
   }
 
   function activeGoal() {
@@ -446,10 +490,11 @@
     async function fetchAll() {
       const data = await call(
         "GET",
-        `/values:batchGet?ranges=Runs!A2:E&ranges=Goals!A2:B&majorDimension=ROWS`
+        `/values:batchGet?ranges=Runs!A2:F&ranges=Goals!A2:B&ranges=Shoes!A2:D&majorDimension=ROWS`
       );
       const runsRows = (data.valueRanges?.[0]?.values) || [];
       const goalRows = (data.valueRanges?.[1]?.values) || [];
+      const shoeRows = (data.valueRanges?.[2]?.values) || [];
       const runs = runsRows
         .filter((row) => row && row[0] && row[1] && row[2])
         .map((row) => ({
@@ -458,6 +503,7 @@
           distanceKm: parseFloat(String(row[2]).replace(",", ".")) || 0,
           createdAt: row[3] || null,
           source: row[4] || "web",
+          shoeId: row[5] || null,
         }));
       const goals = {};
       for (const row of goalRows) {
@@ -466,15 +512,49 @@
         const km = parseFloat(String(row[1] || "").replace(",", "."));
         if (yr && isFinite(km) && km > 0) goals[yr] = km;
       }
-      return { runs, goals };
+      const shoes = shoeRows
+        .filter((row) => row && row[0] && row[1])
+        .map((row) => ({
+          id: String(row[0]).trim(),
+          name: String(row[1]).trim(),
+          addedDate: row[2] || null,
+          baselineKm: parseFloat(String(row[3] || "0").replace(",", ".")) || 0,
+        }));
+      return { runs, goals, shoes };
     }
 
     async function appendRun(run) {
       await call(
         "POST",
-        `/values/Runs!A:E:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-        { values: [[run.id, run.date, run.distanceKm, run.createdAt, run.source]] }
+        `/values/Runs!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { values: [[run.id, run.date, run.distanceKm, run.createdAt, run.source, run.shoeId || ""]] }
       );
+    }
+
+    async function appendShoe(shoe) {
+      await call(
+        "POST",
+        `/values/Shoes!A:D:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { values: [[shoe.id, shoe.name, shoe.addedDate, shoe.baselineKm || 0]] }
+      );
+    }
+
+    async function deleteShoeById(id) {
+      const meta = await getSheetMeta();
+      const sheetId = meta["Shoes"];
+      if (sheetId == null) throw new Error("Shoes sheet not found");
+      const data = await call("GET", `/values/Shoes!A:A?majorDimension=COLUMNS`);
+      const col = (data.values && data.values[0]) || [];
+      const idx = col.indexOf(id);
+      if (idx === -1) return false;
+      await call("POST", `:batchUpdate`, {
+        requests: [{
+          deleteDimension: {
+            range: { sheetId, dimension: "ROWS", startIndex: idx, endIndex: idx + 1 },
+          },
+        }],
+      });
+      return true;
     }
 
     async function deleteRunById(id) {
@@ -526,7 +606,7 @@
       }
     }
 
-    return { fetchAll, appendRun, deleteRunById, upsertGoal };
+    return { fetchAll, appendRun, deleteRunById, upsertGoal, appendShoe, deleteShoeById };
   })();
 
   // ====== mutation queue (offline resilience) =========================
@@ -553,6 +633,8 @@
           if (op.kind === "appendRun") await sheets.appendRun(op.run);
           else if (op.kind === "deleteRun") await sheets.deleteRunById(op.id);
           else if (op.kind === "upsertGoal") await sheets.upsertGoal(op.year, op.km);
+          else if (op.kind === "appendShoe") await sheets.appendShoe(op.shoe);
+          else if (op.kind === "deleteShoe") await sheets.deleteShoeById(op.id);
         } catch (e) {
           op.tries = (op.tries || 0) + 1;
           remaining.push(op);
@@ -575,9 +657,10 @@
       if (!auth.hasToken()) return;
       state.syncing = true; renderStatus();
       try {
-        const { runs, goals } = await sheets.fetchAll();
+        const { runs, goals, shoes } = await sheets.fetchAll();
         state.runs = runs;
         state.goals = goals;
+        state.shoes = Array.isArray(shoes) ? shoes : [];
         state.fetchedAt = new Date().toISOString();
         state.online = true;
         saveCache();
@@ -644,6 +727,17 @@
     kwLabel: $("kwLabel"), weekKm: $("weekKm"), weekTarget: $("weekTarget"), weekBar: $("weekBar"),
     weekDiffLine: $("weekDiffLine"), weekDiffValue: $("weekDiffValue"), weekDiffText: $("weekDiffText"), weekDiffDot: $("weekDiffDot"),
     weekConfetti: $("weekConfetti"),
+    // shoe card
+    shoeCard: $("shoeCard"),
+    shoeView: $("shoeView"), shoeEdit: $("shoeEdit"), shoeEmpty: $("shoeEmpty"),
+    shoeEditToggle: $("shoeEditToggle"), shoeAdd: $("shoeAdd"),
+    shoeSelector: $("shoeSelector"), shoeSelectorLabel: $("shoeSelectorLabel"),
+    shoeKm: $("shoeKm"), shoeBar: $("shoeBar"),
+    shoeDiff: $("shoeDiff"), shoeDiffDot: $("shoeDiffDot"),
+    shoeDiffValue: $("shoeDiffValue"), shoeDiffLabel: $("shoeDiffLabel"),
+    shoesList: $("shoesList"),
+    formShoeField: $("formShoeField"),
+    formShoeSelect: $("formShoeSelect"), formShoeLabel: $("formShoeLabel"),
     runsList: $("runsList"), showAllRuns: $("showAllRuns"),
     langSelect: $("langSelect"),
     exportBtn: $("exportBtn"),
@@ -690,11 +784,15 @@
   // diff variant: "ahead" | "behind" | "onpace"
   function setDiffVariant(line, dotEl, variant) {
     if (!line) return;
-    line.classList.remove("diff--behind", "diff--onpace");
+    line.classList.remove("diff--behind", "diff--onpace", "diff--neutral");
     if (variant === "behind") line.classList.add("diff--behind");
     else if (variant === "onpace") line.classList.add("diff--onpace");
+    else if (variant === "neutral") line.classList.add("diff--neutral");
     if (dotEl) {
-      dotEl.textContent = variant === "behind" ? "↓" : variant === "onpace" ? "→" : "↑";
+      dotEl.textContent =
+        variant === "behind"  ? "↓" :
+        variant === "onpace"  ? "→" :
+        variant === "neutral" ? "→" : "↑";
     }
   }
 
@@ -888,6 +986,8 @@
 
     applyStaticI18n();
     renderRuns();
+    renderShoeCard();
+    renderFormShoe();
     renderChart();
     renderStatus();
   }
@@ -941,6 +1041,142 @@
     els.showAllRuns.textContent = showAllRunsFlag
       ? t.showFewer
       : t.showAllN(all.length);
+  }
+
+  function renderShoeCard() {
+    if (!els.shoeCard) return;
+    const t = I18N[state.language];
+    const hasShoes = state.shoes.length > 0;
+
+    // Section-head action: Bearbeiten / Fertig
+    if (els.shoeEditToggle) {
+      els.shoeEditToggle.textContent = state.editingShoes ? t.doneEditingShoes : t.editShoes;
+    }
+
+    // Mode toggle: view vs edit vs empty-state
+    if (state.editingShoes) {
+      els.shoeView.hidden = true;
+      els.shoeEdit.hidden = false;
+      els.shoeEmpty.hidden = true;
+    } else if (!hasShoes) {
+      els.shoeView.hidden = true;
+      els.shoeEdit.hidden = true;
+      els.shoeEmpty.hidden = false;
+    } else {
+      els.shoeView.hidden = false;
+      els.shoeEdit.hidden = true;
+      els.shoeEmpty.hidden = true;
+    }
+
+    // Ensure selectedShoeId points at a real shoe; fall back to lastShoeId or first shoe.
+    if (hasShoes) {
+      const ids = state.shoes.map((s) => s.id);
+      if (!state.selectedShoeId || !ids.includes(state.selectedShoeId)) {
+        state.selectedShoeId = (state.lastShoeId && ids.includes(state.lastShoeId))
+          ? state.lastShoeId
+          : ids[0];
+      }
+    } else {
+      state.selectedShoeId = null;
+    }
+
+    // View mode: selector + tracker
+    if (!state.editingShoes && hasShoes) {
+      // Populate the native select
+      if (els.shoeSelector) {
+        els.shoeSelector.innerHTML = "";
+        for (const sh of state.shoes) {
+          const opt = document.createElement("option");
+          opt.value = sh.id;
+          opt.textContent = sh.name;
+          if (sh.id === state.selectedShoeId) opt.selected = true;
+          els.shoeSelector.appendChild(opt);
+        }
+      }
+      const sel = state.shoes.find((s) => s.id === state.selectedShoeId);
+      if (els.shoeSelectorLabel) els.shoeSelectorLabel.textContent = sel?.name || "";
+
+      const total = shoeTotalKm(state.selectedShoeId);
+      els.shoeKm.textContent = formatKm1(total);
+      const pct = Math.max(0, Math.min(100, (total / SHOE_GOAL_KM) * 100));
+      els.shoeBar.style.width = pct.toFixed(2) + "%";
+
+      const diff = Math.round((total - SHOE_GOAL_KM) * 100) / 100;
+      if (diff >= 0) {
+        setDiffVariant(els.shoeDiff, els.shoeDiffDot, "ahead");
+        els.shoeDiffValue.textContent = `+${formatKm(diff)} km`;
+        els.shoeDiffLabel.textContent = t.overRecommended;
+      } else {
+        // Below threshold = shoes still good, neutral framing (not a deficit).
+        setDiffVariant(els.shoeDiff, els.shoeDiffDot, "neutral");
+        els.shoeDiffValue.textContent = `${formatKm(Math.abs(diff))} km`;
+        els.shoeDiffLabel.textContent = t.untilRecommended;
+      }
+      els.shoeDiff.hidden = false;
+
+      // Whole card flips to warning amber once a shoe is past its 1000 km threshold.
+      els.shoeCard.classList.toggle("card--worn", total >= SHOE_GOAL_KM);
+    } else {
+      els.shoeCard.classList.remove("card--worn");
+    }
+
+    // Edit mode: list + add
+    if (state.editingShoes) {
+      els.shoesList.innerHTML = "";
+      for (const sh of state.shoes) {
+        const li = document.createElement("li");
+        li.className = "run";
+        const meta = document.createElement("div");
+        meta.className = "run__date";
+        const name = document.createElement("div");
+        name.className = "run__day";
+        name.textContent = sh.name;
+        const sub = document.createElement("div");
+        sub.className = "run__kw tnum";
+        const total = shoeTotalKm(sh.id);
+        const addedHuman = sh.addedDate ? formatDateShort(sh.addedDate) : "—";
+        sub.textContent = t.shoeAddedSinceFmt(formatKm1(total), addedHuman);
+        meta.append(name, sub);
+        const del = document.createElement("button");
+        del.className = "run__del"; del.type = "button";
+        del.setAttribute("aria-label", t.deleteAria || "delete");
+        del.textContent = "×";
+        del.addEventListener("click", () => {
+          if (confirm(t.confirmDeleteShoe)) {
+            removeShoe(sh.id);
+            renderShoeCard();
+            renderFormShoe();
+            sync.pushQueue();
+            toast(t.shoeDeleted);
+          }
+        });
+        li.append(meta, del);
+        els.shoesList.appendChild(li);
+      }
+    }
+  }
+
+  function renderFormShoe() {
+    if (!els.formShoeField || !els.formShoeSelect) return;
+    const hasShoes = state.shoes.length > 0;
+    els.formShoeField.hidden = !hasShoes;
+    if (!hasShoes) return;
+    // Populate select
+    els.formShoeSelect.innerHTML = "";
+    for (const sh of state.shoes) {
+      const opt = document.createElement("option");
+      opt.value = sh.id;
+      opt.textContent = sh.name;
+      els.formShoeSelect.appendChild(opt);
+    }
+    // Default to last-used or first
+    const ids = state.shoes.map((s) => s.id);
+    const defaultId = (state.lastShoeId && ids.includes(state.lastShoeId))
+      ? state.lastShoeId
+      : ids[0];
+    els.formShoeSelect.value = defaultId;
+    const sel = state.shoes.find((s) => s.id === defaultId);
+    if (els.formShoeLabel) els.formShoeLabel.textContent = sel?.name || "";
   }
 
   function renderStatus() {
@@ -1129,18 +1365,50 @@
   }
 
   // ====== mutations =====================================================
-  function addRun(distanceKm, dateISO) {
+  function addRun(distanceKm, dateISO, shoeId) {
     const run = {
       id: uuid(),
       date: dateISO,
       distanceKm,
       createdAt: new Date().toISOString(),
       source: "web",
+      shoeId: shoeId || null,
     };
     state.runs.push(run);
+    if (shoeId) {
+      state.lastShoeId = shoeId;
+      saveSettings();
+    }
     saveCache();
     queue.enqueue({ kind: "appendRun", run });
     return run;
+  }
+
+  function addShoe(name) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return null;
+    const shoe = {
+      id: uuid(),
+      name: trimmed,
+      addedDate: todayISO(),
+      baselineKm: 0,
+    };
+    state.shoes.push(shoe);
+    if (!state.selectedShoeId) state.selectedShoeId = shoe.id;
+    saveCache();
+    queue.enqueue({ kind: "appendShoe", shoe });
+    return shoe;
+  }
+
+  function removeShoe(id) {
+    state.shoes = state.shoes.filter((s) => s.id !== id);
+    if (state.selectedShoeId === id) state.selectedShoeId = state.shoes[0]?.id || null;
+    if (state.lastShoeId === id) {
+      state.lastShoeId = state.shoes[0]?.id || null;
+      saveSettings();
+    }
+    saveCache();
+    queue.enqueue({ kind: "deleteShoe", id });
   }
 
   function setGoal(year, kmOrNull) {
@@ -1204,7 +1472,8 @@
       const dateISO = els.dateInput.value || todayISO();
       const yr = Number(dateISO.slice(0, 4));
       if (!state.goals[String(yr)] && yr !== state.activeYear) state.activeYear = yr;
-      addRun(km, dateISO);
+      const shoeId = (els.formShoeSelect && !els.formShoeField.hidden) ? els.formShoeSelect.value : null;
+      addRun(km, dateISO, shoeId);
       els.distInput.value = "";
       els.dateInput.value = todayISO();
       updateDateDisplay();
@@ -1212,6 +1481,50 @@
       sync.pushQueue();
       toast(t.runAdded);
     });
+
+    // Shoe selector in the form: keep the visible label in sync and remember the last pick.
+    if (els.formShoeSelect) {
+      els.formShoeSelect.addEventListener("change", () => {
+        const id = els.formShoeSelect.value;
+        const sel = state.shoes.find((s) => s.id === id);
+        if (els.formShoeLabel) els.formShoeLabel.textContent = sel?.name || "";
+        state.lastShoeId = id;
+        saveSettings();
+      });
+    }
+
+    // Shoe selector in the view-mode card: switch the tracked shoe.
+    if (els.shoeSelector) {
+      els.shoeSelector.addEventListener("change", () => {
+        state.selectedShoeId = els.shoeSelector.value;
+        state.lastShoeId = state.selectedShoeId;
+        saveSettings();
+        renderShoeCard();
+      });
+    }
+
+    // Edit-mode toggle.
+    if (els.shoeEditToggle) {
+      els.shoeEditToggle.addEventListener("click", () => {
+        state.editingShoes = !state.editingShoes;
+        renderShoeCard();
+      });
+    }
+
+    // Add a new shoe via a native prompt.
+    if (els.shoeAdd) {
+      els.shoeAdd.addEventListener("click", () => {
+        const t = I18N[state.language];
+        const name = prompt(t.shoePromptName, "");
+        if (!name) return;
+        const shoe = addShoe(name);
+        if (!shoe) return;
+        renderShoeCard();
+        renderFormShoe();
+        sync.pushQueue();
+        toast(t.shoeAdded);
+      });
+    }
 
     els.langSelect.addEventListener("change", () => { setLanguage(els.langSelect.value); render(); });
 
