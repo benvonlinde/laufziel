@@ -792,7 +792,7 @@
       dotEl.textContent =
         variant === "behind"  ? "↓" :
         variant === "onpace"  ? "→" :
-        variant === "neutral" ? "→" : "↑";
+        variant === "neutral" ? "↓" : "↑";
     }
   }
 

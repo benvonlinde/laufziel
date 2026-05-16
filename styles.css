@@ -711,7 +711,7 @@ body[data-year-mode="future"] .hero .hero__remain { text-align: left; font-size:
 
 /* ---------- 22a. Shoe card ---------- */
 .shoe-card { display: flex; flex-direction: column; gap: var(--s-3); }
-.shoe-view  { display: flex; flex-direction: column; gap: var(--s-3); }
+.shoe-view  { display: flex; flex-direction: column; gap: 14px; }
 .shoe-edit  { display: flex; flex-direction: column; gap: var(--s-4); }
 .shoe-view[hidden], .shoe-edit[hidden], .shoe-empty[hidden] { display: none; }
 .shoe-empty  { margin: 0; padding: var(--s-3) 0; font-size: var(--t-meta); }
